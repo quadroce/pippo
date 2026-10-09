@@ -1,0 +1,20 @@
+﻿[
+  { "code": "IT", "name": "Italy", "entryUrl": "https://pluto.tv/it", "timezone": "Europe/Rome", "language": "it" },
+  { "code": "GB", "name": "United Kingdom", "entryUrl": "https://pluto.tv/gb", "timezone": "Europe/London", "language": "en" },
+  { "code": "DE", "name": "Germany", "entryUrl": "https://pluto.tv/de", "timezone": "Europe/Berlin", "language": "de" },
+  { "code": "FR", "name": "France", "entryUrl": "https://pluto.tv/fr", "timezone": "Europe/Paris", "language": "fr" },
+  { "code": "ES", "name": "Spain", "entryUrl": "https://pluto.tv/es", "timezone": "Europe/Madrid", "language": "es" },
+  { "code": "CH", "name": "Switzerland", "entryUrl": "https://pluto.tv/ch", "timezone": "Europe/Zurich", "language": "de" },
+  { "code": "AT", "name": "Austria", "entryUrl": "https://pluto.tv/at", "timezone": "Europe/Vienna", "language": "de" },
+  { "code": "DK", "name": "Denmark", "entryUrl": "https://pluto.tv/dk", "timezone": "Europe/Copenhagen", "language": "da" },
+  { "code": "NO", "name": "Norway", "entryUrl": "https://pluto.tv/no", "timezone": "Europe/Oslo", "language": "nb" },
+  { "code": "SE", "name": "Sweden", "entryUrl": "https://pluto.tv/se", "timezone": "Europe/Stockholm", "language": "sv" },
+  { "code": "US", "name": "United States", "entryUrl": "https://pluto.tv/us", "timezone": "America/New_York", "language": "en" },
+  { "code": "CA", "name": "Canada", "entryUrl": "https://pluto.tv/ca", "timezone": "America/Toronto", "language": "en" },
+  { "code": "MX", "name": "Mexico", "entryUrl": "https://pluto.tv/mx", "timezone": "America/Mexico_City", "language": "es" },
+  { "code": "BR", "name": "Brazil", "entryUrl": "https://pluto.tv/br", "timezone": "America/Sao_Paulo", "language": "pt" },
+  { "code": "AR", "name": "Argentina", "entryUrl": "https://pluto.tv/ar", "timezone": "America/Argentina/Buenos_Aires", "language": "es" },
+  { "code": "CL", "name": "Chile", "entryUrl": "https://pluto.tv/cl", "timezone": "America/Santiago", "language": "es" },
+  { "code": "CO", "name": "Colombia", "entryUrl": "https://pluto.tv/co", "timezone": "America/Bogota", "language": "es" },
+  { "code": "PE", "name": "Peru", "entryUrl": "https://pluto.tv/pe", "timezone": "America/Lima", "language": "es" }
+]

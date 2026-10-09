@@ -10,6 +10,7 @@ Pippo is a Witbe-style quality-of-experience (QoE) monitor for the Pluto TV web 
 | 04 | [Web App Functional Spec](04-WEB-APP-SPEC.md) | Pages, flows, roles, emails |
 | 05 | [Roadmap & Release Plan](05-ROADMAP.md) | Phases, milestones, acceptance criteria |
 | 06 | [Operations Runbook](06-RUNBOOK.md) | Setup, daily operation, alert handling, troubleshooting |
+| 07 | [Implementation Plan](07-IMPLEMENTATION-PLAN.md) | Step-by-step build plan, decisions, open items |
 
 ## Status
 

@@ -1,0 +1,272 @@
+// Data model from docs/02-ARCHITECTURE.md §4, plus the Auth.js tables
+// (Account/Session/VerificationToken) needed for magic-link login.
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider  = "postgresql"
+  url       = env("POSTGRES_PRISMA_URL")
+  directUrl = env("POSTGRES_URL_NON_POOLING")
+}
+
+enum Role {
+  admin
+  member
+}
+
+enum RunStatus {
+  running
+  completed
+  blocked
+  failed
+}
+
+enum ResultStatus {
+  ok
+  warning
+  critical
+  error
+}
+
+enum JobStatus {
+  pending
+  running
+  done
+  expired
+}
+
+enum Severity {
+  info
+  warning
+  critical
+}
+
+enum AlertStatus {
+  open
+  acknowledged
+}
+
+model Country {
+  code     String  @id // ISO 3166-1 alpha-2, e.g. "IT"
+  name     String
+  entryUrl String
+  timezone String
+  language String
+  active   Boolean @default(true)
+  runHour  String  @default("06:00") // local scheduled run time
+
+  channels   Channel[]
+  runs       Run[]
+  thresholds ThresholdOverride[]
+}
+
+model Channel {
+  id             String  @id // e.g. "it-rai-news"
+  countryCode    String
+  slug           String
+  name           String
+  category       String?
+  isReference    Boolean @default(false)
+  subtitleSample Boolean @default(false)
+  drm            Boolean @default(false)
+
+  country Country         @relation(fields: [countryCode], references: [code])
+  results ChannelResult[]
+
+  @@unique([countryCode, slug])
+}
+
+model Run {
+  id              String    @id @default(uuid())
+  countryCode     String
+  trigger         String // scheduled | on_demand
+  status          RunStatus @default(running)
+  detectedCountry String?
+  startedAt       DateTime  @default(now())
+  finishedAt      DateTime?
+  agentVersion    String?
+  log             Json?
+  jobId           String?   @unique
+
+  country Country         @relation(fields: [countryCode], references: [code])
+  job     Job?            @relation(fields: [jobId], references: [id])
+  results ChannelResult[]
+  epg     EpgResult?
+
+  @@index([countryCode, startedAt])
+}
+
+model ChannelResult {
+  id           String       @id @default(uuid())
+  runId        String
+  channelId    String
+  status       ResultStatus
+  metrics      Json
+  rawBufferUrl String?
+  measuredAt   DateTime     @default(now())
+
+  run         Run           @relation(fields: [runId], references: [id], onDelete: Cascade)
+  channel     Channel       @relation(fields: [channelId], references: [id])
+  checks      CheckResult[]
+  screenshots Screenshot[]
+
+  @@index([channelId, measuredAt])
+  @@index([runId])
+}
+
+model CheckResult {
+  id              String   @id @default(uuid())
+  channelResultId String
+  checkId         String // e.g. "player.stall_ratio"
+  severity        Severity
+  passed          Boolean
+  value           Float?
+  threshold       Float?
+  detail          String?
+
+  channelResult ChannelResult @relation(fields: [channelResultId], references: [id], onDelete: Cascade)
+  alerts        Alert[]
+
+  @@index([channelResultId])
+  @@index([checkId])
+}
+
+model EpgResult {
+  id      String @id @default(uuid())
+  runId   String @unique
+  metrics Json
+  issues  Json
+
+  run Run @relation(fields: [runId], references: [id], onDelete: Cascade)
+}
+
+model Screenshot {
+  id              String @id @default(uuid())
+  channelResultId String
+  blobUrl         String
+  tOffsetSec      Int
+  kind            String // periodic | failure | epg_grid | home
+
+  channelResult ChannelResult @relation(fields: [channelResultId], references: [id], onDelete: Cascade)
+
+  @@index([channelResultId])
+}
+
+model Alert {
+  id             String      @id @default(uuid())
+  checkResultId  String
+  status         AlertStatus @default(open)
+  emailedAt      DateTime?
+  acknowledgedAt DateTime?
+  acknowledgedBy String?
+  createdAt      DateTime    @default(now())
+
+  checkResult CheckResult @relation(fields: [checkResultId], references: [id], onDelete: Cascade)
+  user        User?       @relation(fields: [acknowledgedBy], references: [id])
+
+  @@index([status, createdAt])
+}
+
+model Job {
+  id          String    @id @default(uuid())
+  countryCode String
+  channelIds  Json // string[]; empty array = entire country
+  options     Json? // window, subtitle sync, images/EPG
+  status      JobStatus @default(pending)
+  createdBy   String
+  createdAt   DateTime  @default(now())
+
+  user User @relation(fields: [createdBy], references: [id])
+  run  Run?
+
+  @@index([status, createdAt])
+}
+
+model ThresholdOverride {
+  id          String  @id @default(uuid())
+  countryCode String? // null = global default
+  checkId     String
+  warn        Float?
+  critical    Float?
+
+  country Country? @relation(fields: [countryCode], references: [code])
+
+  @@unique([countryCode, checkId])
+}
+
+model Setting {
+  key       String   @id // e.g. "activeCountry", "agent.pollIntervalSec"
+  value     Json
+  updatedAt DateTime @updatedAt
+}
+
+model AuditLog {
+  id        String   @id @default(uuid())
+  userId    String?
+  action    String
+  detail    Json?
+  createdAt DateTime @default(now())
+
+  @@index([createdAt])
+}
+
+model Agent {
+  id              String   @id // fixed "default" in v1
+  lastHeartbeatAt DateTime
+  detectedCountry String?
+  currentVersion  String?
+  info            Json?
+}
+
+// --- Auth.js ---
+
+model User {
+  id            String    @id @default(uuid())
+  email         String    @unique
+  name          String?
+  emailVerified DateTime?
+  image         String?
+  role          Role      @default(member)
+  invitedAt     DateTime  @default(now())
+
+  accounts Account[]
+  sessions Session[]
+  jobs     Job[]
+  alerts   Alert[]
+}
+
+model Account {
+  userId            String
+  type              String
+  provider          String
+  providerAccountId String
+  refresh_token     String?
+  access_token      String?
+  expires_at        Int?
+  token_type        String?
+  scope             String?
+  id_token          String?
+  session_state     String?
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@id([provider, providerAccountId])
+}
+
+model Session {
+  sessionToken String   @unique
+  userId       String
+  expires      DateTime
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+}
+
+model VerificationToken {
+  identifier String
+  token      String
+  expires    DateTime
+
+  @@id([identifier, token])
+}
