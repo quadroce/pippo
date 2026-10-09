@@ -1,0 +1,61 @@
+# Pluto TV web profile for Italy, from `pippo discover --country IT` run on 2026-10-09
+# (anonymous visitor, Chrome headless, Italian IP). Entries marked UNVERIFIED were read from
+# the DOM dump but not yet exercised by a probe; confirm them when the probe that uses them is built.
+# Pluto TV can change any of this without notice: re-run discovery and update this file.
+country: IT
+entry_url: "https://pluto.tv/it/"
+
+pages:
+  home: "/it/"
+  live_tv: "/it/watch/live-tv/"
+  channel: "/it/watch/live-tv/{numericId}/"     # numericId comes from the guide API ("href")
+
+routes:
+  # Match by substring on the request URL (query strings carry JWTs and device ids: never log them).
+  guide: "/api/tn/video/graphql/?operationName=ChannelsMany"
+  # Persisted-query GraphQL, paged 20 channels at a time (variables.params.rows / start).
+  # Response: data.channels.{total, start, channels[]}. Each channel has: id, channelName, href,
+  # filePathLogo, currentListing/upcoming listings, channelCategorySlugs, displayOrder.
+  # IT run: total = 127 channels.
+  guide_one: "/api/tn/video/graphql/?operationName=ChannelsOne"
+  regional_config: "operationName=RegionalConfiguration"
+  playout_session: "/api/tn/video/playout/v3/session.json"
+  # Response has marketingRegion ("it"): the country as resolved by Pluto, second source for the
+  # country pre-check (the IP source is already implemented). It is only seen while a channel plays.
+  hls_master: "/api/tn/video/playout/v2/stitch/hls/channel/"   # .../master.m3u8, then playlist.m3u8 and audio/<Language>/audio.m3u8
+  consent_config: "global.ketchcdn.com/web/v3/config/pluto"   # Ketch consent platform
+
+hosts:
+  api: "pluto.tv"
+  playout: "ipv4.pluto.tv"
+  images: "wwwimage-us.plutostatic.tv"      # artwork CDN, also used for the Italian site
+  # Third parties seen (ads, analytics, consent); useful to ignore when counting errors:
+  third_party: ["googlesyndication.com", "doubleclick.net", "conviva.com", "kochava.com", "datadoghq.com", "redfastlabs.com", "ketchcdn.com"]
+
+selectors:
+  # Verified in the DOM dump:
+  video: "video"                                  # blob: source (MSE); playing headless, readyState 4, 2 textTracks on a news channel
+  epg_hero_player: "[data-testid='epg-hero-player-container']"
+  epg_nav_bar: "[data-testid='web-epg-nav-bar']"
+  channel_details: "[data-testid='channel-details']"
+  channel_title: "h1"                              # channel page: H1 is the channel name
+  rail_tile: "[data-testid='base-tile']"
+  rail_carousel: "[data-testid='base-carousel']"
+  home_hero: "[data-testid='hero-and-buckets']"
+  player_region: "[aria-label='Live Video Player']"
+  subtitles_menu_button: "[aria-label='Audio and Subtitles menu, opens a dialog']"   # UNVERIFIED across countries: label is English here
+  # UNVERIFIED (roles seen, structure not yet analysed): EPG grid uses ARIA roles.
+  epg_grid: "[role='grid']"
+  epg_row: "[role='row']"
+  epg_cell: "[role='gridcell']"
+  # TODO (needs a closer look when the EPG probes are built, Phase 3): now marker, program title in player,
+  # subtitle text overlay.
+  epg_now_marker: null
+  player_title: null
+  subtitle_text: null
+
+consent:
+  # The banner (Ketch) shows "Accetta" / "Rifiuta" / "Gestisci i Cookie". Discovery never clicks it
+  # and the site works without. Decision for the robot (privacy-preserving default): reject.
+  reject_button_text: ["Rifiuta"]
+  note: "Texts are Italian; other countries need their own words."
