@@ -1,0 +1,11 @@
+# Defaults for the agent. Secrets live in .env, never here.
+poll_interval_sec: 10        # job polling; overridden by the server heartbeat response
+heartbeat_interval_sec: 60
+observation_window_sec: 60
+parallelism: 4
+geoip:
+  timeout_sec: 10
+http:
+  timeout_sec: 30
+  retries: 4                 # attempts after the first one
+  backoff_base_sec: 1.0      # exponential: 1, 2, 4, 8 ...
