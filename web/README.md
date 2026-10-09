@@ -37,6 +37,20 @@ Passwordless magic-link login with Auth.js (database sessions via Prisma). Only 
 - To use Gmail SMTP, create an App Password and set it only in `.env.local` or Vercel env vars, never in the repository.
 - Server components call `requireUser()` / `requireAdmin()` from `lib/session.ts`; pages under `app/(app)/` are protected by the layout.
 
+## Agent API
+
+Endpoints used by the Python agent, all requiring `Authorization: Bearer <AGENT_API_KEY>` (constant-time check; 401 on a wrong key, 503 if the server has no key). Request/response schemas: [`lib/schemas/agent.ts`](lib/schemas/agent.ts); the agent mirrors them in `agent/pippo/api_client.py`.
+
+| Route | Purpose |
+|-------|---------|
+| `POST /api/agent/heartbeat` | Records the agent state; returns `{activeCountry, pollIntervalSec}` |
+| `POST /api/agent/runs` | Creates a run; if `detectedCountry` differs from `countryCode` the run is stored as `blocked` (FR-3) |
+| `POST /api/agent/upload?runId=&kind=screenshot\|raw&name=` | Stores a PNG/JPEG/JSON/gzip body (max 4 MB) in Vercel Blob with private access; returns `{url, pathname}` |
+
+Not yet implemented (later steps): jobs polling/ack, channel and EPG results, `finish`, rate limiting, and the signed-URL endpoint used by the dashboard to display private screenshots. The upload endpoint streams bytes through the server instead of issuing a signed upload URL (documented deviation, see the route comment).
+
+Tests: `npm test` (Vitest, Prisma and Blob mocked).
+
 ## Database
 
 - Schema: [`prisma/schema.prisma`](prisma/schema.prisma). Migrations are committed in `prisma/migrations/`; on Vercel apply them with `prisma migrate deploy`.

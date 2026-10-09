@@ -33,8 +33,8 @@ Status: ⬜ todo · 🟨 in progress · ✅ done
 |---|------|------|--------|
 | 0.1 | Bootstrap Next.js 15 + Tailwind, Prisma schema from doc 02, seed (countries, first admin) | `web/` | ✅ |
 | 0.2 | Auth.js magic link (console in dev, Gmail SMTP when configured), invited emails only, roles | `web/` | ✅ |
-| 0.3 | Agent API: `heartbeat`, `runs`, `upload`; Bearer key; shared Zod schemas | `web/` | ⬜ |
-| 0.4 | Agent skeleton: config, `.env`, API client with retry, `doctor`, country pre-check, heartbeat | `agent/` | ⬜ |
+| 0.3 | Agent API: `heartbeat`, `runs`, `upload`; Bearer key; shared Zod schemas | `web/` | ✅ |
+| 0.4 | Agent skeleton: config, `.env`, API client with retry, `doctor`, country pre-check, heartbeat | `agent/` | ✅ |
 | 0.5 | `pippo discover --country IT` → first `pluto_profile.yaml` (needs operator PC + VPN Italy) | `agent/` | ⬜ |
 | 0.6 | Vercel deploy (Postgres, Blob, previews), `install-service.ps1` (NSSM), branch protection | infra | ⬜ |
 
