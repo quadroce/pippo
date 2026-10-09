@@ -54,3 +54,17 @@ Response: `{"activeCountry": "IT", "pollIntervalSec": 10}`. The agent compares `
 
 The HTTP client retries network errors and 408/429/5xx with exponential backoff (`config.yaml` → `http`); other 4xx errors fail immediately.
 
+
+## Windows service
+
+`scripts/install-service.ps1` installs the agent as the `PippoAgent` service ("Pippo Agent" in `services.msc`) with [NSSM](https://nssm.cc): starts with Windows, restarts 5 s after any exit, logs to `agent/logs/agent.log` (rotated at 5 MB).
+
+```
+winget install NSSM.NSSM                    # once; then open a new terminal
+cd agent
+.\scripts\install-service.ps1 -DryRun       # preview, no changes, no admin needed
+.\scripts\install-service.ps1               # elevated PowerShell; needs .venv and .env
+.\scripts\uninstall-service.ps1             # remove
+```
+
+By default the service runs as LocalSystem. If your VPN client or Chrome profile only work in your own session, install with `-Credential (Get-Credential)` to run it as your user (the password goes to NSSM, never into a file). Requires a configured `.env` and the virtual environment; the script stops with a clear message otherwise.
