@@ -22,7 +22,7 @@ agent/
 ```
 cd agent
 python -m venv .venv
-.venv\Scriptsctivate
+.venv\Scripts\activate
 pip install -r requirements-dev.txt
 copy .env.example .env      # set API_BASE_URL and AGENT_API_KEY
 python -m pytest            # unit tests
