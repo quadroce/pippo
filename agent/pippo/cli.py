@@ -16,6 +16,9 @@ def main(argv: list[str] | None = None) -> int:
     sub.add_parser("serve", help="run the heartbeat loop")
     disc = sub.add_parser("discover", help="map pluto.tv routes and selectors (step 0.5)")
     disc.add_argument("--country", required=True)
+    disc.add_argument("--url", help="entry URL (default: https://pluto.tv/<country>/)")
+    disc.add_argument("--headless", action="store_true", help="run Chrome without a window")
+    disc.add_argument("--wait", type=float, default=4.0, help="extra seconds to wait after each page load")
     sub.add_parser("run", help="run a measurement (Phase 1+)")
     args = parser.parse_args(argv)
 
@@ -48,6 +51,15 @@ def main(argv: list[str] | None = None) -> int:
             client.close()
         print(("OK: " if result.ok else "BLOCKED: ") + result.detail)
         return 0 if result.ok else 1
+
+    if args.command == "discover":
+        from pippo.discover import run_discovery
+
+        country = args.country.upper()
+        url = args.url or f"https://pluto.tv/{country.lower()}/"
+        out = run_discovery(country, url, args.headless, args.wait)
+        print(f"Discovery written to {out}")
+        return 0
 
     print(f"'{args.command}' is not implemented yet (see docs/07-IMPLEMENTATION-PLAN.md)")
     return 3

@@ -31,7 +31,16 @@ python -m pippo heartbeat   # one heartbeat + country pre-check
 python -m pippo serve       # heartbeat loop
 ```
 
-`discover` and `run` are placeholders until steps 0.5 and Phase 1.
+`run` is a placeholder until Phase 1.
+
+### Discovery
+
+```
+python -m pippo discover --country IT            # visible Chrome window
+python -m pippo discover --country IT --headless
+```
+
+Opens `https://pluto.tv/<cc>/` in the installed Chrome (own profile per country in `agent/profiles/`), visits the live guide and one channel, and writes network calls, DOM dumps, screenshots and a draft `pluto_profile.draft.yaml` to `agent/discovery/<cc>/<timestamp>/`. It only observes (no clicks). The output is git-ignored because it contains session tokens. Curated result for Italy: [`pluto_profile.yaml`](pluto_profile.yaml); findings: [`docs/08-DISCOVERY-FINDINGS.md`](../docs/08-DISCOVERY-FINDINGS.md).
 
 ## Heartbeat contract (implemented by the web app in step 0.3)
 
