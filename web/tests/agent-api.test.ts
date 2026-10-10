@@ -5,6 +5,7 @@ const db = vi.hoisted(() => ({
   setting: { findUnique: vi.fn() },
   country: { findUnique: vi.fn() },
   run: { create: vi.fn(), findUnique: vi.fn() },
+  job: { update: vi.fn(), updateMany: vi.fn(), findFirst: vi.fn(), findUnique: vi.fn() },
 }));
 vi.mock("@/lib/db", () => ({ prisma: db }));
 vi.mock("@/lib/notices", () => ({ sendBlockedNotice: vi.fn() }));
@@ -14,6 +15,8 @@ vi.mock("@vercel/blob", () => ({ put }));
 import { POST as heartbeat } from "@/app/api/agent/heartbeat/route";
 import { POST as createRun } from "@/app/api/agent/runs/route";
 import { POST as upload } from "@/app/api/agent/upload/route";
+import { GET as listJobs } from "@/app/api/agent/jobs/route";
+import { POST as ackJob } from "@/app/api/agent/jobs/[id]/ack/route";
 
 const KEY = "test-key";
 const url = (p: string) => `http://localhost/api/agent/${p}`;
@@ -111,5 +114,47 @@ describe("upload", () => {
     expect((await upload(req(`runId=${runId}&kind=raw&name=../a`))).status).toBe(400);
     db.run.findUnique.mockResolvedValue(null);
     expect((await upload(req(`runId=${runId}&kind=screenshot&name=a.png`))).status).toBe(404);
+  });
+});
+describe("jobs", () => {
+  const JOB = "22222222-2222-4222-8222-222222222222";
+  const get = (qs = "?wait=0", key: string | null = KEY) =>
+    listJobs(new Request(`http://localhost/api/agent/jobs${qs}`, { headers: key ? { authorization: `Bearer ${key}` } : {} }));
+
+  it("requires the key", async () => {
+    expect((await get("?wait=0", null)).status).toBe(401);
+  });
+
+  it("returns the oldest pending job with defaults for missing options", async () => {
+    db.job.updateMany.mockResolvedValue({ count: 0 });
+    db.job.findFirst.mockResolvedValue({ id: JOB, countryCode: "IT", channelIds: ["it-a", "it-b"], options: { windowSec: 30 } });
+    const body = await (await get()).json();
+    expect(body.jobs).toEqual([{ id: JOB, countryCode: "IT", channelIds: ["it-a", "it-b"], windowSec: 30, includeImages: true }]);
+    expect(db.job.findFirst.mock.calls[0][0].orderBy).toEqual({ createdAt: "asc" });
+  });
+
+  it("expires stale jobs before answering and returns an empty list when nothing is pending", async () => {
+    db.job.updateMany.mockResolvedValue({ count: 1 });
+    db.job.findFirst.mockResolvedValue(null);
+    expect(await (await get()).json()).toEqual({ jobs: [] });
+    expect(db.job.updateMany.mock.calls[0][0].data).toEqual({ status: "expired" });
+  });
+
+  const ack = (id = JOB) =>
+    ackJob(new Request("http://localhost/x", { method: "POST", headers: { authorization: `Bearer ${KEY}` } }), { params: Promise.resolve({ id }) });
+
+  it("acks a pending job once", async () => {
+    db.job.updateMany.mockResolvedValue({ count: 1 });
+    expect((await ack()).status).toBe(200);
+    expect(db.job.updateMany.mock.calls[0][0]).toEqual({ where: { id: JOB, status: "pending" }, data: { status: "running" } });
+  });
+
+  it("answers 409 for a job already taken, 404 for an unknown one and 400 for a bad id", async () => {
+    db.job.updateMany.mockResolvedValue({ count: 0 });
+    db.job.findUnique.mockResolvedValueOnce({ status: "running" });
+    expect((await ack()).status).toBe(409);
+    db.job.findUnique.mockResolvedValueOnce(null);
+    expect((await ack()).status).toBe(404);
+    expect((await ack("nope")).status).toBe(400);
   });
 });

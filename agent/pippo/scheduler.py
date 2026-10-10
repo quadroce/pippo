@@ -38,14 +38,32 @@ def parse_schedule(reply: dict) -> Schedule | None:
         return None
 
 
+class RunGate:
+    """Only one run at a time: the daily job and on-demand jobs share this lock."""
+
+    def __init__(self) -> None:
+        self._lock = threading.Lock()
+
+    def acquire(self, timeout: float | None = None) -> bool:
+        return self._lock.acquire(timeout=-1 if timeout is None else timeout)
+
+    def release(self) -> None:
+        self._lock.release()
+
+    @property
+    def busy(self) -> bool:
+        return self._lock.locked()
+
+
 class DailyScheduler:
     """One cron job at the active country's local run time. Runs never overlap."""
 
-    def __init__(self, run_country: Callable[[str], None]):
+    def __init__(self, run_country: Callable[[str], None], gate: RunGate | None = None, wait_sec: float = 7200):
         self._run_country = run_country
         self._scheduler = BackgroundScheduler()
         self._current: Schedule | None = None
-        self._busy = threading.Lock()
+        self.gate = gate or RunGate()
+        self._wait_sec = wait_sec
 
     def start(self) -> None:
         self._scheduler.start()
@@ -80,8 +98,10 @@ class DailyScheduler:
         return job.next_run_time if job else None
 
     def _fire(self, country: str) -> None:
-        if not self._busy.acquire(blocking=False):
-            log.warning("a run is already in progress: skipping the scheduled run for %s", country)
+        if self.gate.busy:
+            log.info("another run is in progress: the scheduled run for %s waits for it (up to %.0f min)", country, self._wait_sec / 60)
+        if not self.gate.acquire(timeout=self._wait_sec):
+            log.error("the scheduled run for %s could not start: another run kept the agent busy too long", country)
             return
         try:
             log.info("scheduled run starting for %s", country)
@@ -89,4 +109,4 @@ class DailyScheduler:
         except Exception:
             log.exception("scheduled run for %s failed", country)
         finally:
-            self._busy.release()
+            self.gate.release()

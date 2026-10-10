@@ -82,6 +82,7 @@ def execute_run(
     detect: Callable[[Settings], str] = detect_ip_country,
     reports_dir: Path | None = None,
     measure_players: PlayerMeasure | None = None,
+    job_id: str | None = None,
 ) -> dict:
     """Run end to end. Returns {runId, counts, saved, failedUploads}. Raises RunBlocked on a country mismatch.
 
@@ -96,9 +97,10 @@ def execute_run(
         log.warning("country detection failed: %s", e)
         detected = None
 
-    run = api.create_run(
-        {"countryCode": country, "trigger": trigger, "detectedCountry": detected, "agentVersion": __version__}
-    )
+    payload = {"countryCode": country, "trigger": trigger, "detectedCountry": detected, "agentVersion": __version__}
+    if job_id:
+        payload["jobId"] = job_id
+    run = api.create_run(payload)
     run_id = run["id"]
     if run["status"] == "blocked":
         raise RunBlocked(f"selected {country} but detected {detected or 'unknown'}; run {run_id} stored as blocked")
@@ -138,7 +140,8 @@ def execute_run(
                 failed.append(f"{ch.slug}: {e}")
 
     try:
-        api.upload_images(run_id, {"pages": m.report["pages"], "checks": m.report["checks"]})
+        if m.report["pages"]:  # empty for guide-only measurements
+            api.upload_images(run_id, {"pages": m.report["pages"], "checks": m.report["checks"]})
         if measure_players is None:
             for ch in m.channels:
                 upload_channel(ChannelOutcome(ch))

@@ -148,3 +148,12 @@ After the images step the agent measures every channel of the guide with `parall
 - Duration: about `channels x window / parallelism` (127 channels at 60 s with 4 workers is roughly 32 minutes plus the images step).
 
 Live test with 2 workers: four 25 s recordings finished in 53 s, and an invalid channel id was flagged. Note that **TTFF read 17-23 s with two browsers in parallel** against 12.6 s for a single one: load on the machine inflates it, so the TTFF thresholds need calibration with the production parallelism before alerts rely on them.
+
+## On-demand jobs (step 2.4)
+
+`serve` also runs a job poller next to the daily scheduler. They share one **run gate**, so only one run is active at a time:
+
+- The poller long-polls `GET /api/agent/jobs`; it does not poll while a run is active, and it acknowledges a job only after it has the gate, so a queued job stays `pending` on the web app while the agent is busy.
+- A job runs the requested channels (ids `<cc>-<slug>` are mapped to guide slugs) or the whole country, with the requested window. Without "include images" the agent only loads the guide to learn the channels (about 20 s) instead of crawling home and guide. Requested channels missing from the guide are reported as `error` results instead of being dropped.
+- The run is created with the job id and trigger `on_demand` (no daily report). A country mismatch stores a blocked run and closes the job.
+- If the daily run fires while a job is running, it **waits** for it (up to 2 hours) instead of being skipped.

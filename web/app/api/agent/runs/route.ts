@@ -35,6 +35,7 @@ export async function POST(req: Request) {
     },
   });
 
+  if (blocked && r.jobId) await prisma.job.update({ where: { id: r.jobId }, data: { status: "done" } });
   if (blocked) await sendBlockedNotice({ runId: run.id, selected: r.countryCode, detected: r.detectedCountry ?? null });
 
   return NextResponse.json({ id: run.id, status: run.status }, { status: 201 });
