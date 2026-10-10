@@ -88,3 +88,13 @@ When a **scheduled** run is closed as `completed` (`POST /api/agent/runs/:id/fin
 - **Recent changes**: the last 20 entries of `AuditLog` (every save and reset is recorded with the user and the old and new values).
 
 The heartbeat response includes the effective `thresholds` so the agent grades its checks with the values set here (at the start of each run); if the web app is unreachable the agent uses its built-in defaults. Not yet in Settings: users and invitations, countries editing, agent key rotation, send-test-email.
+
+## Users and invitations (admin only)
+
+`/settings/users`, linked from Settings:
+
+- **Invite**: enter an email and a role (`member` or `admin`). A `User` row is created and an invitation email ("[Pippo] You have been invited to Pippo", [spec](../docs/04-WEB-APP-SPEC.md) §4.4) points to `/login`, where the invitee asks for a one-time sign-in link. If the email cannot be sent the user still has access and the page tells you which URL to share.
+- **Change role**: the system always keeps at least one active admin, so the last admin cannot be demoted.
+- **Remove**: sets `User.active = false` and deletes the user's sessions immediately; history (jobs, acknowledged alerts) stays. You cannot remove yourself or the last admin. Inviting the same email again restores access.
+- Sign-in requires an existing **active** user (`auth.ts`); the seed re-activates the first admin.
+- Every action is written to the audit log (`user.invite`, `user.restore`, `user.role`, `user.remove`). Migration `20261011000000_user_active` adds `User.active`.

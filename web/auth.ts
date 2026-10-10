@@ -24,11 +24,11 @@ export const { handlers, auth, signIn, signOut } = NextAuth({
     }),
   ],
   callbacks: {
-    // Only invited users (rows in User, created by the seed or by an admin) may sign in.
+    // Only invited, still active users (rows in User created by the seed or by an admin) may sign in.
     async signIn({ user }) {
       if (!user.email) return false;
       const existing = await prisma.user.findUnique({ where: { email: user.email.toLowerCase() } });
-      return Boolean(existing);
+      return Boolean(existing?.active);
     },
     async session({ session, user }) {
       session.user.id = user.id;

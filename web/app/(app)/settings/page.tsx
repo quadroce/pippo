@@ -1,3 +1,4 @@
+import Link from "next/link";
 import { prisma } from "@/lib/db";
 import { getActiveCountry } from "@/lib/queries";
 import { requireAdmin } from "@/lib/session";
@@ -24,7 +25,14 @@ export default async function SettingsPage() {
 
   return (
     <div className="space-y-10">
-      <h1 className="text-2xl font-semibold">Settings</h1>
+      <div>
+        <h1 className="text-2xl font-semibold">Settings</h1>
+        <p className="mt-1 text-sm">
+          <Link href="/settings/users" className="underline">
+            Manage users and invitations
+          </Link>
+        </p>
+      </div>
 
       <section aria-label="Active country" className="space-y-2">
         <h2 className="text-lg font-medium">Active country</h2>
