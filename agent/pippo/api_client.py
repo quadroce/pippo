@@ -73,3 +73,27 @@ class ApiClient:
     def heartbeat(self, payload: dict) -> dict:
         """POST /api/agent/heartbeat. Response: {activeCountry, pollIntervalSec?}."""
         return self.request("POST", "/api/agent/heartbeat", json=payload).json()
+
+    def create_run(self, payload: dict) -> dict:
+        """POST /api/agent/runs. Response: {id, status} where status is "running" or "blocked"."""
+        return self.request("POST", "/api/agent/runs", json=payload).json()
+
+    def upload_channel(self, run_id: str, payload: dict) -> dict:
+        return self.request("POST", f"/api/agent/runs/{run_id}/channels", json=payload).json()
+
+    def upload_images(self, run_id: str, payload: dict) -> dict:
+        return self.request("POST", f"/api/agent/runs/{run_id}/images", json=payload).json()
+
+    def finish_run(self, run_id: str, payload: dict | None = None) -> dict:
+        return self.request("POST", f"/api/agent/runs/{run_id}/finish", json=payload or {}).json()
+
+    def upload_file(self, run_id: str, kind: str, name: str, data: bytes, content_type: str) -> dict:
+        """POST /api/agent/upload (max 4 MB). Returns {url, pathname}."""
+        return self.request(
+            "POST",
+            "/api/agent/upload",
+            params={"runId": run_id, "kind": kind, "name": name},
+            content=data,
+            headers={"Content-Type": content_type},
+        ).json()
+

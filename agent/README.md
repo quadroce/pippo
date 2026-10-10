@@ -82,3 +82,17 @@ Crawls the home page (`/it/home/`) and the live guide, scrolling the page to the
 - Thresholds are the catalog defaults in `pippo/thresholds.py`.
 
 First live result (Italy, 2026-10-10): home 106 images and guide 386, none broken, one 16:9 thumbnail actually served as 4:3.
+
+## Full run and upload (Phase 1)
+
+```
+python -m pippo run --country IT --headless              # needs .env with API_BASE_URL and AGENT_API_KEY
+python -m pippo run --country IT --trigger scheduled
+```
+
+Steps: detect the country of the public IP, create the run on the web app (the server stores it as `blocked` if the detected country differs, and the agent stops without measuring), measure home and live guide, capture the channel list from the guide API while the page scrolls (all 127 Italian channels in the first live test), run the images checks plus `img.channel_logo_missing` per channel, then upload the images result, one result per channel and close the run.
+
+- The measurement is written to `agent/reports/run-<cc>-<timestamp>.json` **before** uploading, so an upload failure keeps the data; the run is then closed as `failed` on the server. Automatic retry of pending uploads is planned for Phase 5 (offline queue).
+- A crash during the measurement closes the run as `failed` with the error in its log.
+- `pippo images` still measures and writes the local report only, without any upload.
+- Channels are identified by the guide's `slug` (id on the server: `<cc>-<slug>`); the logo of a channel is matched to the EPG images through the 24-character id inside the logo URL.
