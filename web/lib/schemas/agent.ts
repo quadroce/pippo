@@ -48,3 +48,47 @@ export const uploadQuery = z.object({
   kind: z.enum(UPLOAD_KINDS),
   name: z.string().regex(/^[\w.-]{1,80}$/, "letters, digits, dot, dash, underscore"),
 });
+
+// --- Results (step 1.3) -------------------------------------------------------------------
+
+export const checkInput = z.object({
+  checkId: z.string().min(1).max(80),
+  severity: z.enum(["info", "warning", "critical"]),
+  passed: z.boolean(),
+  value: z.number().nullable().optional(),
+  threshold: z.number().nullable().optional(),
+  detail: z.string().max(1000).nullable().optional(),
+  scope: z.string().max(40).optional(), // e.g. "home", "epg" for page-level checks
+});
+export type CheckInput = z.infer<typeof checkInput>;
+
+export const channelResultRequest = z.object({
+  channel: z.object({
+    slug: z.string().regex(/^[\w.-]{1,80}$/),
+    name: z.string().min(1).max(200),
+    category: z.string().max(100).nullable().optional(),
+  }),
+  error: z.string().max(500).optional(), // set when the measurement crashed -> status "error"
+  metrics: z.record(z.string(), z.unknown()).default({}),
+  checks: z.array(checkInput).max(200).default([]),
+  measuredAt: z.string().datetime().optional(),
+});
+export type ChannelResultRequest = z.infer<typeof channelResultRequest>;
+
+export const imagesResultRequest = z.object({
+  pages: z.record(
+    z.string().max(40),
+    z.object({
+      url: z.string().max(500),
+      metrics: z.record(z.string(), z.unknown()),
+      loadError: z.string().nullable().optional(),
+    }),
+  ),
+  checks: z.array(checkInput).max(200),
+});
+export type ImagesResultRequest = z.infer<typeof imagesResultRequest>;
+
+export const finishRunRequest = z.object({
+  status: z.enum(["completed", "failed"]).default("completed"),
+  log: z.array(z.object({ level: z.string(), msg: z.string().max(500) })).max(200).optional(),
+});

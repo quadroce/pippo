@@ -47,7 +47,17 @@ Endpoints used by the Python agent, all requiring `Authorization: Bearer <AGENT_
 | `POST /api/agent/runs` | Creates a run; if `detectedCountry` differs from `countryCode` the run is stored as `blocked` (FR-3) |
 | `POST /api/agent/upload?runId=&kind=screenshot\|raw&name=` | Stores a PNG/JPEG/JSON/gzip body (max 4 MB) in Vercel Blob with private access; returns `{url, pathname}` |
 
-Not yet implemented (later steps): jobs polling/ack, channel and EPG results, `finish`, rate limiting, and the signed-URL endpoint used by the dashboard to display private screenshots. The upload endpoint streams bytes through the server instead of issuing a signed upload URL (documented deviation, see the route comment).
+Results endpoints (step 1.3), all on a run that is still `running` (404 unknown, 409 once closed):
+
+| Route | Purpose |
+|-------|---------|
+| `POST /api/agent/runs/:id/channels` | One channel result: `{channel:{slug,name,category?}, metrics, checks[], error?}`. The channel is created on first sight (id `<cc>-<slug>`); the status is derived server-side from the failed checks (critical > warning > ok), or `error` when `error` is set |
+| `POST /api/agent/runs/:id/images` | Page-level images result `{pages:{home,epg}, checks[]}` stored on the run (same shape as the agent's `pippo images` report); posting again replaces it |
+| `POST /api/agent/runs/:id/finish` | Closes the run (`completed` or `failed`), returns status counts |
+
+Dashboard pages (server-rendered, login required): Overview (country cards with last run, counts and broken-image rates, agent panel), Channels (latest completed run of the selected country, images column), Runs and Run detail (images summary, failed checks, per-channel table, run log). Migration `20261010000000_run_images` adds `Run.images`.
+
+Not yet implemented (later steps): jobs polling/ack, EPG results, rate limiting, and the signed-URL endpoint used by the dashboard to display private screenshots. The upload endpoint streams bytes through the server instead of issuing a signed upload URL (documented deviation, see the route comment).
 
 Tests: `npm test` (Vitest, Prisma and Blob mocked).
 
