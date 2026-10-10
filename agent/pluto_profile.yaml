@@ -6,7 +6,7 @@ country: IT
 entry_url: "https://pluto.tv/it/"
 
 pages:
-  home: "/it/"
+  home: "/it/home/"
   live_tv: "/it/watch/live-tv/"
   channel: "/it/watch/live-tv/{numericId}/"     # numericId comes from the guide API ("href")
 
