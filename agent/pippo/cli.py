@@ -31,6 +31,8 @@ def main(argv: list[str] | None = None) -> int:
     run.add_argument("--country", required=True)
     run.add_argument("--headless", action="store_true", help="run Chrome without a window")
     run.add_argument("--trigger", choices=["scheduled", "on_demand"], default="on_demand")
+    run.add_argument("--no-player", action="store_true", help="images and logos only, skip the player measurements")
+    run.add_argument("--limit", type=int, help="measure only the first N channels (for testing)")
     args = parser.parse_args(argv)
 
     settings = load_settings()
@@ -107,14 +109,21 @@ def main(argv: list[str] | None = None) -> int:
         from pippo.agent_loop import server_thresholds
         from pippo.api_client import ApiClient, ApiError
         from pippo.images_run import measure
+        from pippo.players_run import player_measure_for
         from pippo.runner import RunBlocked, execute_run
 
         country = args.country.upper()
         api = ApiClient(settings)
         try:
             overrides = server_thresholds(settings, api)
+            players = None if args.no_player else player_measure_for(settings, country, args.headless, overrides, args.limit)
             out = execute_run(
-                api, settings, country, lambda: measure(country, args.headless, overrides=overrides), args.trigger
+                api,
+                settings,
+                country,
+                lambda: measure(country, args.headless, overrides=overrides),
+                args.trigger,
+                measure_players=players,
             )
         except RunBlocked as e:
             print(f"BLOCKED: {e}")
@@ -125,6 +134,8 @@ def main(argv: list[str] | None = None) -> int:
         finally:
             api.close()
         print(f"Run {out['runId']} completed: {out['counts']}. Local copy: {out['saved']}")
+        if out["failedUploads"]:
+            print(f"{len(out['failedUploads'])} channel upload(s) failed, see the run log")
         return 0
 
     print(f"'{args.command}' is not implemented yet (see docs/07-IMPLEMENTATION-PLAN.md)")

@@ -78,6 +78,12 @@ export const channelResultRequest = z.object({
   metrics: z.record(z.string(), z.unknown()).default({}),
   checks: z.array(checkInput).max(200).default([]),
   measuredAt: z.string().datetime().optional(),
+  // Evidence uploaded beforehand through /api/agent/upload (private Blob URLs).
+  screenshots: z
+    .array(z.object({ tOffsetSec: z.number().int().min(0).max(600), kind: z.string().max(30), blobUrl: z.string().url().max(1000) }))
+    .max(10)
+    .default([]),
+  rawBufferUrl: z.string().url().max(1000).optional(),
 });
 export type ChannelResultRequest = z.infer<typeof channelResultRequest>;
 

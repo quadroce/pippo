@@ -72,6 +72,20 @@ describe("POST /runs/:id/channels", () => {
     expect(db.tx.channelResult.create.mock.calls[0][0].data.checks.create).toHaveLength(1);
   });
 
+  it("stores screenshots and the raw buffer url with the result", async () => {
+    db.tx.channelResult.create.mockResolvedValue({ id: "r1" });
+    const res = await call(channels, {
+      ...body,
+      screenshots: [{ tOffsetSec: 10, kind: "periodic", blobUrl: "https://blob.example/a.png" }],
+      rawBufferUrl: "https://blob.example/raw.gz",
+    });
+    expect(res.status).toBe(201);
+    const data = db.tx.channelResult.create.mock.calls[0][0].data;
+    expect(data.screenshots.create).toEqual([{ blobUrl: "https://blob.example/a.png", tOffsetSec: 10, kind: "periodic" }]);
+    expect(data.rawBufferUrl).toBe("https://blob.example/raw.gz");
+    expect((await call(channels, { ...body, screenshots: [{ tOffsetSec: 1, kind: "x", blobUrl: "not a url" }] })).status).toBe(400);
+  });
+
   it("rejects bad auth, bad id, unknown run, closed run and invalid body", async () => {
     expect((await call(channels, body, RUN, "nope")).status).toBe(401);
     expect((await call(channels, body, "not-a-uuid")).status).toBe(400);

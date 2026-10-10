@@ -40,7 +40,11 @@ export async function POST(req: Request, ctx: { params: Promise<{ id: string }> 
         channelId,
         status,
         metrics: { ...r.metrics, ...(r.error ? { error: r.error } : {}) } as object,
+        rawBufferUrl: r.rawBufferUrl ?? null,
         measuredAt: r.measuredAt ? new Date(r.measuredAt) : undefined,
+        screenshots: {
+          create: r.screenshots.map((s) => ({ blobUrl: s.blobUrl, tOffsetSec: s.tOffsetSec, kind: s.kind })),
+        },
         checks: {
           create: r.checks.map((c) => ({
             checkId: c.checkId,

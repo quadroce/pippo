@@ -84,9 +84,17 @@ def compute_metrics(rec: dict) -> dict:
     m["media_errors"] = [e.get("err") for e in errors][:5]
     started = bool(first_play or first_time) and advanced
     first_error_before_frame = bool(errors) and (first_time is None or errors[0]["t"] < first_time["t"])
+    # Pluto sends an unknown or withdrawn channel to another page that plays something else, so
+    # playback alone does not prove the requested channel works: the URL must still be the channel's.
+    expected, final = rec.get("expectedId"), rec.get("finalPath")
+    redirected = bool(expected and final is not None and str(expected) not in final)
     m["player.start_failed"] = int(
-        bool(rec.get("navError")) or first_error_before_frame or not started
+        bool(rec.get("navError")) or first_error_before_frame or not started or redirected
     )
+    if redirected:
+        m["start_failure"] = f"page redirected to {final or '/'} instead of the channel {expected}"
+    elif rec.get("navError"):
+        m["start_failure"] = rec["navError"]
     m["player.ttff"] = first_time["t"] if first_time else None
 
     eps = stall_episodes(events, window_ms)
@@ -172,6 +180,8 @@ def evaluate(metrics: dict, overrides: dict[str, Threshold] | None = None) -> li
             continue
         severity, crossed = grade(check_id, float(value), overrides)
         detail = None
+        if check_id == "player.start_failed" and metrics.get("start_failure"):
+            detail = metrics["start_failure"]
         if check_id == "player.media_error" and metrics.get("media_errors"):
             detail = str(metrics["media_errors"][0])
         if check_id == "player.segment_errors" and metrics.get("segment_error_samples"):
