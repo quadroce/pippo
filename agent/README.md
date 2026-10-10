@@ -96,3 +96,14 @@ Steps: detect the country of the public IP, create the run on the web app (the s
 - A crash during the measurement closes the run as `failed` with the error in its log.
 - `pippo images` still measures and writes the local report only, without any upload.
 - Channels are identified by the guide's `slug` (id on the server: `<cc>-<slug>`); the logo of a channel is matched to the EPG images through the 24-character id inside the logo URL.
+
+## Daily scheduled run (Phase 1)
+
+`python -m pippo serve` (the Windows service) sends a heartbeat every `heartbeat_interval_sec` and keeps one APScheduler cron job aligned with the schedule in the reply: the **active country** at its configured local time (`Country.runHour`, default 06:00, in the country's timezone). Changing the active country or the time on the web app is picked up at the next heartbeat.
+
+- The job runs `execute_run(..., trigger="scheduled")`, which triggers the daily report email on the server. If the country pre-check fails the run is stored as blocked and the operator gets the notice email.
+- Runs never overlap: a trigger that fires while another run is in progress is skipped and logged. A trigger missed by up to one hour (agent restarting or busy) still runs once.
+- The agent measures headless in the scheduled job. Chrome and the VPN must be available in the account the service runs as (see Windows service).
+- On-demand job polling arrives in Phase 2.
+
+Heartbeat response contract, updated: `{"activeCountry": "IT", "pollIntervalSec": 10, "schedule": {"countryCode": "IT", "runHour": "06:00", "timezone": "Europe/Rome"}}` (`schedule` is `null` when no country is active).

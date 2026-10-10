@@ -15,6 +15,8 @@ const db = vi.hoisted(() => {
   };
 });
 vi.mock("@/lib/db", () => ({ prisma: db }));
+const sendDailyReport = vi.hoisted(() => vi.fn());
+vi.mock("@/lib/report-data", () => ({ sendDailyReport }));
 
 import { POST as channels } from "@/app/api/agent/runs/[id]/channels/route";
 import { POST as images } from "@/app/api/agent/runs/[id]/images/route";
@@ -95,10 +97,35 @@ describe("POST /runs/:id/images", () => {
 describe("POST /runs/:id/finish", () => {
   it("closes the run and returns status counts", async () => {
     db.channelResult.findMany.mockResolvedValue([{ status: "ok" }, { status: "critical" }, { status: "ok" }]);
-    db.run.update.mockResolvedValue({ id: RUN, status: "completed" });
+    db.run.update.mockResolvedValue({ id: RUN, status: "completed", trigger: "on_demand", log: null });
     const res = await call(finish as typeof channels, {});
     expect(res.status).toBe(200);
-    expect(await res.json()).toEqual({ id: RUN, status: "completed", counts: { ok: 2, warning: 0, critical: 1, error: 0 } });
+    expect(await res.json()).toEqual({
+      id: RUN,
+      status: "completed",
+      counts: { ok: 2, warning: 0, critical: 1, error: 0 },
+      reportSentTo: 0,
+    });
     expect(db.run.update.mock.calls[0][0].data.finishedAt).toBeInstanceOf(Date);
+    expect(sendDailyReport).not.toHaveBeenCalled(); // on-demand runs do not send the daily report
+  });
+
+  it("sends the daily report for a completed scheduled run", async () => {
+    db.channelResult.findMany.mockResolvedValue([]);
+    db.run.update.mockResolvedValue({ id: RUN, status: "completed", trigger: "scheduled", log: null });
+    sendDailyReport.mockResolvedValue(2);
+    const res = await call(finish as typeof channels, {});
+    expect((await res.json()).reportSentTo).toBe(2);
+    expect(sendDailyReport).toHaveBeenCalledWith(RUN);
+  });
+
+  it("still succeeds when the report email fails, and records it in the run log", async () => {
+    db.channelResult.findMany.mockResolvedValue([]);
+    db.run.update.mockResolvedValueOnce({ id: RUN, status: "completed", trigger: "scheduled", log: null });
+    db.run.update.mockResolvedValueOnce({});
+    sendDailyReport.mockRejectedValue(new Error("smtp down"));
+    const res = await call(finish as typeof channels, {});
+    expect(res.status).toBe(200);
+    expect(db.run.update.mock.calls[1][0].data.log[0].msg).toContain("smtp down");
   });
 });

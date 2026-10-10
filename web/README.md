@@ -66,3 +66,14 @@ Tests: `npm test` (Vitest, Prisma and Blob mocked).
 - Schema: [`prisma/schema.prisma`](prisma/schema.prisma). Migrations are committed in `prisma/migrations/`; on Vercel apply them with `prisma migrate deploy`.
 - Seed: [`prisma/seed.ts`](prisma/seed.ts) is idempotent. The country list in [`prisma/countries.json`](prisma/countries.json) is a **starting point** (entry URLs and countries to be validated, PRD open question 1); existing rows are never overwritten.
 - Beyond the entities in the architecture doc the schema adds `Setting` (e.g. active country), `AuditLog`, `Agent` (last heartbeat) and the Auth.js tables.
+
+## Daily report email (step 1.4)
+
+When a **scheduled** run is closed as `completed` (`POST /api/agent/runs/:id/finish`), the server sends the daily report ([spec](../docs/04-WEB-APP-SPEC.md) §4.1): subject `[Pippo] IT — Daily report 2026-10-09 — 3 critical, 11 warnings`, channel status counts, images summary, top 10 failed checks (critical first), channels that became critical or recovered versus the previous completed run, and a link to the run. HTML plus plain-text alternative; the building logic is pure (`lib/report.ts`) and unit-tested, fetching and sending are in `lib/report-data.ts`.
+
+- **Recipients**: Setting `email.reportRecipients` (JSON array of emails), otherwise `ADMIN_EMAIL`. A settings form arrives with the Settings page.
+- A failed email never fails the agent's `finish` call: the error is written to the run log. On-demand runs do not send the report.
+- A run created with a country mismatch is stored as `blocked` and an operational notice ("Run blocked: country mismatch") is sent to the same recipients.
+- `POST /api/agent/heartbeat` now also returns `schedule: {countryCode, runHour, timezone}` for the active country (`Country.runHour`, default `06:00` local time) so the agent knows when to run.
+- Without SMTP credentials emails are printed to the server console in development (see Authentication).
+- Not yet done: the Vercel Cron "no run received today" notice, "agent offline" notice and React Email templates (plain HTML for now).

@@ -7,6 +7,7 @@ const db = vi.hoisted(() => ({
   run: { create: vi.fn(), findUnique: vi.fn() },
 }));
 vi.mock("@/lib/db", () => ({ prisma: db }));
+vi.mock("@/lib/notices", () => ({ sendBlockedNotice: vi.fn() }));
 const put = vi.hoisted(() => vi.fn());
 vi.mock("@vercel/blob", () => ({ put }));
 
@@ -46,9 +47,14 @@ describe("heartbeat", () => {
     db.setting.findUnique.mockImplementation(async ({ where }: { where: { key: string } }) =>
       where.key === "activeCountry" ? { value: "IT" } : null,
     );
+    db.country.findUnique.mockResolvedValue({ code: "IT", runHour: "06:00", timezone: "Europe/Rome" });
     const res = await heartbeat(json("heartbeat", { agentVersion: "0.1.0", detectedCountry: "it" }));
     expect(res.status).toBe(200);
-    expect(await res.json()).toEqual({ activeCountry: "IT", pollIntervalSec: 10 });
+    expect(await res.json()).toEqual({
+      activeCountry: "IT",
+      pollIntervalSec: 10,
+      schedule: { countryCode: "IT", runHour: "06:00", timezone: "Europe/Rome" },
+    });
     expect(db.agent.upsert.mock.calls[0][0].update.detectedCountry).toBe("IT");
   });
 

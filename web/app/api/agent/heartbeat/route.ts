@@ -36,8 +36,12 @@ export async function POST(req: Request) {
     prisma.setting.findUnique({ where: { key: "agent.pollIntervalSec" } }),
   ]);
 
+  const activeCode = typeof active?.value === "string" ? active.value : null;
+  const country = activeCode ? await prisma.country.findUnique({ where: { code: activeCode } }) : null;
+
   const res: HeartbeatResponse = {
-    activeCountry: typeof active?.value === "string" ? active.value : null,
+    activeCountry: activeCode,
+    schedule: country ? { countryCode: country.code, runHour: country.runHour, timezone: country.timezone } : null,
     pollIntervalSec: typeof poll?.value === "number" ? poll.value : DEFAULT_POLL_SEC,
   };
   return NextResponse.json(res);

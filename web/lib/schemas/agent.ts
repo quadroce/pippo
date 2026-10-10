@@ -21,6 +21,10 @@ export type HeartbeatRequest = z.infer<typeof heartbeatRequest>;
 export const heartbeatResponse = z.object({
   activeCountry: z.string().nullable(),
   pollIntervalSec: z.number().int().positive(),
+  // Daily run schedule of the active country (local time, "HH:MM"); null when no country is active.
+  schedule: z
+    .object({ countryCode: z.string(), runHour: z.string().regex(/^\d{2}:\d{2}$/), timezone: z.string() })
+    .nullable(),
 });
 export type HeartbeatResponse = z.infer<typeof heartbeatResponse>;
 

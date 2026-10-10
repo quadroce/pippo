@@ -52,7 +52,7 @@ def main(argv: list[str] | None = None) -> int:
             return 0
         client = ApiClient(settings)
         try:
-            result = heartbeat_once(settings, client)
+            result, _ = heartbeat_once(settings, client)
         finally:
             client.close()
         print(("OK: " if result.ok else "BLOCKED: ") + result.detail)
