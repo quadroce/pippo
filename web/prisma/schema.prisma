@@ -88,6 +88,7 @@ model Run {
   finishedAt      DateTime?
   agentVersion    String?
   log             Json?
+  images          Json? // page-level images result: {pages: {...}, checks: [...]}
   jobId           String?   @unique
 
   country Country         @relation(fields: [countryCode], references: [code])

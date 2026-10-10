@@ -1,0 +1,115 @@
+{
+ "pages": {
+  "home": {
+   "url": "https://pluto.tv/it/watch/live-tv/",
+   "metrics": {
+    "img.total_count": 386,
+    "img.broken_ratio": 0.0,
+    "img.placeholder_ratio": 0.0,
+    "img.aspect_mismatch": 1,
+    "img.lazy_load_timeout": 0.45,
+    "img.oversized_payload": 42,
+    "by_type": {
+     "logo": 254,
+     "thumb_16_9": 128,
+     "other": 4
+    }
+   },
+   "loadError": null
+  },
+  "epg": {
+   "url": "https://pluto.tv/it/watch/live-tv/",
+   "metrics": {
+    "img.total_count": 386,
+    "img.broken_ratio": 0.0,
+    "img.placeholder_ratio": 0.0,
+    "img.aspect_mismatch": 1,
+    "img.lazy_load_timeout": 0.83,
+    "img.oversized_payload": 42,
+    "by_type": {
+     "logo": 254,
+     "thumb_16_9": 128,
+     "other": 4
+    }
+   },
+   "loadError": null
+  }
+ },
+ "checks": [
+  {
+   "checkId": "img.broken_ratio",
+   "scope": "home",
+   "severity": "info",
+   "passed": true,
+   "value": 0.0,
+   "threshold": null,
+   "detail": ""
+  },
+  {
+   "checkId": "img.placeholder_ratio",
+   "scope": "home",
+   "severity": "info",
+   "passed": true,
+   "value": 0.0,
+   "threshold": null,
+   "detail": "no placeholder library configured"
+  },
+  {
+   "checkId": "img.aspect_mismatch",
+   "scope": "home",
+   "severity": "warning",
+   "passed": false,
+   "value": 1,
+   "threshold": 0,
+   "detail": "natural ratio 1.33 vs expected 1.78 (62f9f4523568a9001bbbfd3b)"
+  },
+  {
+   "checkId": "img.lazy_load_timeout",
+   "scope": "home",
+   "severity": "info",
+   "passed": true,
+   "value": 0.45,
+   "threshold": null,
+   "detail": ""
+  },
+  {
+   "checkId": "img.broken_ratio",
+   "scope": "epg",
+   "severity": "info",
+   "passed": true,
+   "value": 0.0,
+   "threshold": null,
+   "detail": ""
+  },
+  {
+   "checkId": "img.placeholder_ratio",
+   "scope": "epg",
+   "severity": "info",
+   "passed": true,
+   "value": 0.0,
+   "threshold": null,
+   "detail": "no placeholder library configured"
+  },
+  {
+   "checkId": "img.aspect_mismatch",
+   "scope": "epg",
+   "severity": "warning",
+   "passed": false,
+   "value": 1,
+   "threshold": 0,
+   "detail": "natural ratio 1.33 vs expected 1.78 (62f9f4523568a9001bbbfd3b)"
+  },
+  {
+   "checkId": "img.lazy_load_timeout",
+   "scope": "epg",
+   "severity": "info",
+   "passed": true,
+   "value": 0.83,
+   "threshold": null,
+   "detail": ""
+  }
+ ],
+ "country": "IT",
+ "agentVersion": "0.1.0",
+ "measuredAt": "2026-10-10T09:18:33.304451+02:00"
+}
