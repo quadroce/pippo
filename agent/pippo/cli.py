@@ -22,7 +22,10 @@ def main(argv: list[str] | None = None) -> int:
     img = sub.add_parser("images", help="run the images & artwork probe on home and EPG")
     img.add_argument("--country", required=True)
     img.add_argument("--headless", action="store_true", help="run Chrome without a window")
-    sub.add_parser("run", help="run a measurement (Phase 1+)")
+    run = sub.add_parser("run", help="measure a country and upload the results to the web app")
+    run.add_argument("--country", required=True)
+    run.add_argument("--headless", action="store_true", help="run Chrome without a window")
+    run.add_argument("--trigger", choices=["scheduled", "on_demand"], default="on_demand")
     args = parser.parse_args(argv)
 
     settings = load_settings()
@@ -76,6 +79,31 @@ def main(argv: list[str] | None = None) -> int:
             if not c["passed"]:
                 print(f"[{c['severity'].upper()}] {c['scope']} {c['checkId']}: {c['value']} > {c['threshold']} {c['detail']}")
         print(f"Report written to {out}")
+        return 0
+
+    if args.command == "run":
+        problems = validate_settings(settings)
+        if problems:
+            print("
+".join(problems))
+            return 2
+        from pippo.api_client import ApiClient, ApiError
+        from pippo.images_run import measure
+        from pippo.runner import RunBlocked, execute_run
+
+        country = args.country.upper()
+        api = ApiClient(settings)
+        try:
+            out = execute_run(api, settings, country, lambda: measure(country, args.headless), args.trigger)
+        except RunBlocked as e:
+            print(f"BLOCKED: {e}")
+            return 1
+        except ApiError as e:
+            print(f"Upload failed: {e}")
+            return 1
+        finally:
+            api.close()
+        print(f"Run {out['runId']} completed: {out['counts']}. Local copy: {out['saved']}")
         return 0
 
     print(f"'{args.command}' is not implemented yet (see docs/07-IMPLEMENTATION-PLAN.md)")
