@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 import { prisma } from "@/lib/db";
 import { checkAgentAuth, parseJson } from "@/lib/agent-route";
+import { sendBlockedNotice } from "@/lib/notices";
 import { createRunRequest } from "@/lib/schemas/agent";
 
 export const dynamic = "force-dynamic";
@@ -33,6 +34,8 @@ export async function POST(req: Request) {
         : undefined,
     },
   });
+
+  if (blocked) await sendBlockedNotice({ runId: run.id, selected: r.countryCode, detected: r.detectedCountry ?? null });
 
   return NextResponse.json({ id: run.id, status: run.status }, { status: 201 });
 }

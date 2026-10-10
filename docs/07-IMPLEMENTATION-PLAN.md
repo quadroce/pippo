@@ -47,7 +47,7 @@ Status: ⬜ todo · 🟨 in progress · ✅ done
 | 1.1 | Home and EPG crawl with full scrolling; image inventory | 🟨 home + guide done; carousels on home not scrolled yet |
 | 1.2 | `img.*` checks; placeholder pHash library | 🟨 checks done; placeholder library empty (needs real fallback images) |
 | 1.3 | Run/result upload; Overview, Runs, Channels pages (image columns) | 🟨 API, upload client and pages done; Channels filters/sort and Overview sparkline pending |
-| 1.4 | APScheduler daily run; daily report email | ⬜ |
+| 1.4 | APScheduler daily run; daily report email | 🟨 scheduler and report email done and unit-tested; needs a real end-to-end run after deploy |
 | 1.5 | Global thresholds in Settings | ⬜ |
 
 ### Phase 2 — Player, on-demand, alerts (M2)
