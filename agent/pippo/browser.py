@@ -32,4 +32,6 @@ def open_context(p: Playwright, country: str, headless: bool, profiles_dir: Path
         headless=headless,
         user_agent=ua,
         viewport={"width": 1440, "height": 900},
+        # Live TV must start without a click, and the audio probe needs a running AudioContext.
+        args=["--autoplay-policy=no-user-gesture-required"],
     )

@@ -55,8 +55,8 @@ Status: ⬜ todo · 🟨 in progress · ✅ done
 
 | # | Step | Status |
 |---|------|--------|
-| 2.1 | Recorder (events, frames, audio, network) | ⬜ |
-| 2.2 | `player.*` checks; DRM detection and fallback | ⬜ |
+| 2.1 | Recorder (events, frames, audio, network) | ✅ |
+| 2.2 | `player.*` checks; DRM detection and fallback | 🟨 11 checks done; ad-break checks and DRM fallback screenshots pending |
 | 2.3 | 4 parallel contexts, error isolation, screenshots to Blob (signed URLs) | ⬜ |
 | 2.4 | Job queue (long-poll, ack) and Run test page with progress | ⬜ |
 | 2.5 | Channel detail with history; Alerts page; de-duplication and country-wide aggregation | ⬜ |

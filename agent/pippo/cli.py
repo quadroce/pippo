@@ -22,6 +22,11 @@ def main(argv: list[str] | None = None) -> int:
     img = sub.add_parser("images", help="run the images & artwork probe on home and EPG")
     img.add_argument("--country", required=True)
     img.add_argument("--headless", action="store_true", help="run Chrome without a window")
+    ch = sub.add_parser("channel", help="record and check the playback of one channel (local report only)")
+    ch.add_argument("--country", required=True)
+    ch.add_argument("--id", required=True, help="numeric channel id from the guide link, e.g. 32276 for /it/watch/live-tv/32276/")
+    ch.add_argument("--window", type=int, default=60, help="observation window in seconds")
+    ch.add_argument("--headless", action="store_true", help="run Chrome without a window")
     run = sub.add_parser("run", help="measure a country and upload the results to the web app")
     run.add_argument("--country", required=True)
     run.add_argument("--headless", action="store_true", help="run Chrome without a window")
@@ -81,11 +86,23 @@ def main(argv: list[str] | None = None) -> int:
         print(f"Report written to {out}")
         return 0
 
+    if args.command == "channel":
+        from pippo.channel_run import measure_channel
+
+        result, out = measure_channel(args.country.upper(), args.id, args.window, args.headless)
+        m = result["metrics"]
+        for key in sorted(k for k in m if k.startswith("player.")):
+            print(f"{key}: {m[key]}")
+        for c in result["checks"]:
+            if not c["passed"]:
+                print(f"[{c['severity'].upper()}] {c['checkId']}: {c['value']} > {c['threshold']} {c['detail'] or ''}")
+        print(f"Report written to {out}")
+        return 0
+
     if args.command == "run":
         problems = validate_settings(settings)
         if problems:
-            print("
-".join(problems))
+            print(chr(10).join(problems))
             return 2
         from pippo.agent_loop import server_thresholds
         from pippo.api_client import ApiClient, ApiError
