@@ -162,6 +162,7 @@ model Alert {
   emailedAt      DateTime?
   acknowledgedAt DateTime?
   acknowledgedBy String?
+  emailState     String      @default("pending") // pending, sent, held, deduped, aggregated, failed
   createdAt      DateTime    @default(now())
 
   checkResult CheckResult @relation(fields: [checkResultId], references: [id], onDelete: Cascade)

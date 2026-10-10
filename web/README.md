@@ -111,3 +111,18 @@ Agent endpoints (Bearer key):
 | `POST /api/agent/jobs/:id/ack` | Pending to running; only one caller wins, a job no longer pending answers 409 |
 
 A run created with `jobId` closes its job as `done` when it finishes (or is created blocked); the run status tells whether it succeeded. A job that was acknowledged but never produced a run is expired after 12 hours. Launching a test is audit-logged (`job.create`).
+
+## Alerts, channel detail and evidence (step 2.5)
+
+**Alerts** (`/alerts`, any signed-in member): open critical findings grouped by channel and check, with first seen, last seen, number of occurrences, the latest value against its threshold and links to the channel and the run; filters by country and check; **Acknowledge** closes every open occurrence of that channel and check and records who and when (audit-logged); acknowledged ones are in a collapsible list. Acknowledging does not stop future alerts if the problem persists.
+
+**How alert emails are decided** (`lib/alerts.ts` rules, `lib/alerts-data.ts` database side). Each failed *critical* check stored by `POST /runs/:id/channels` creates an alert occurrence, then:
+
+- the same (channel, check) is emailed at most once per 24 hours (`deduped` otherwise, still recorded);
+- the first 3 new findings of a check in a run are emailed **immediately** (`[Pippo] IT — CRITICAL: Rai News — Playback did not start`, with value, threshold, link to the channel evidence and to Alerts), so a broken channel is reported within minutes; further ones are **held** until the run ends;
+- when the run is closed (`finish`), if a check failed on more than 30 % of the channels (at least 3 failing and 10 measured) the held findings are replaced by **one country-wide email** listing the affected channels (also sent at most once per 24 h per country and check); otherwise the held findings go out as **one digest**;
+- an email failure never fails the upload; the occurrence is marked `failed`. Recipients are the same as the daily report. Alert state per occurrence is in `Alert.emailState` (migration `20261012000000_alert_email_state`).
+
+**Channel detail** (`/channels/[id]`, linked from the Channels list and Alerts): latest result with every metric, the thresholds in force and failed checks highlighted; screenshots (10/30/60 s and on failure); download of the raw event buffer; 90-day history charts (TTFF, stall ratio, black/frozen/silent time) with a status strip (letters as well as colors) and a table of past results; **Run test on this channel** queues a 60 s job.
+
+**Private evidence**: screenshots and raw buffers live in private Blob storage and are only served through `/api/screenshots/[id]` and `/api/raw/[id]`, which require a signed-in user and stream the bytes (short private cache, the Blob URL is never sent to the browser).

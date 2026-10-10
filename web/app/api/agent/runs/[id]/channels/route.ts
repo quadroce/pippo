@@ -2,6 +2,7 @@ import { NextResponse } from "next/server";
 import { prisma } from "@/lib/db";
 import { checkAgentAuth, parseJson } from "@/lib/agent-route";
 import { loadWritableRun } from "@/lib/agent-run";
+import { recordCriticalFindings } from "@/lib/alerts-data";
 import { channelStatus } from "@/lib/results";
 import { channelResultRequest } from "@/lib/schemas/agent";
 
@@ -35,6 +36,7 @@ export async function POST(req: Request, ctx: { params: Promise<{ id: string }> 
       },
     });
     return tx.channelResult.create({
+      include: { checks: true, channel: true },
       data: {
         runId: run.id,
         channelId,
@@ -58,6 +60,13 @@ export async function POST(req: Request, ctx: { params: Promise<{ id: string }> 
       },
     });
   });
+
+  // Alert bookkeeping must never fail the upload: the result is already stored.
+  try {
+    await recordCriticalFindings(run.countryCode, run.startedAt, result);
+  } catch (e) {
+    console.error("alert recording failed", e);
+  }
 
   return NextResponse.json({ id: result.id, channelId, status }, { status: 201 });
 }

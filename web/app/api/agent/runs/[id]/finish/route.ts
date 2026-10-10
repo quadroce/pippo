@@ -3,6 +3,7 @@ import { prisma } from "@/lib/db";
 import { checkAgentAuth, parseJson } from "@/lib/agent-route";
 import { loadWritableRun } from "@/lib/agent-run";
 import { countStatuses, type ResultStatus } from "@/lib/results";
+import { finalizeAlerts } from "@/lib/alerts-data";
 import { sendDailyReport } from "@/lib/report-data";
 import { finishRunRequest } from "@/lib/schemas/agent";
 
@@ -25,6 +26,14 @@ export async function POST(req: Request, ctx: { params: Promise<{ id: string }> 
     where: { id: loaded.run.id },
     data: { status: body.data.status, finishedAt: new Date(), ...(body.data.log ? { log: body.data.log } : {}) },
   });
+
+  if (run.status === "completed") {
+    try {
+      await finalizeAlerts(run.id);
+    } catch (e) {
+      console.error("finalizing alerts failed", e);
+    }
+  }
 
   // An on-demand run closes its job (the run status tells whether it succeeded).
   if (run.jobId) await prisma.job.update({ where: { id: run.jobId }, data: { status: "done" } });

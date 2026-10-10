@@ -63,7 +63,11 @@ export default async function ChannelsPage({ searchParams }: { searchParams: Pro
                 const frozen = metric(r.metrics, "player.frozen_frame");
                 return (
                   <tr key={r.id} className="border-b border-neutral-100">
-                    <td className="py-2">{r.channel.name}</td>
+                    <td className="py-2">
+                      <Link className="underline" href={`/channels/${r.channel.id}`}>
+                        {r.channel.name}
+                      </Link>
+                    </td>
                     <td>{r.channel.category ?? "—"}</td>
                     <td>
                       <StatusBadge status={r.status} />

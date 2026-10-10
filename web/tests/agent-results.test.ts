@@ -16,6 +16,8 @@ const db = vi.hoisted(() => {
   };
 });
 vi.mock("@/lib/db", () => ({ prisma: db }));
+const alerts = vi.hoisted(() => ({ recordCriticalFindings: vi.fn(), finalizeAlerts: vi.fn() }));
+vi.mock("@/lib/alerts-data", () => alerts);
 const sendDailyReport = vi.hoisted(() => vi.fn());
 vi.mock("@/lib/report-data", () => ({ sendDailyReport }));
 
@@ -38,7 +40,7 @@ const call = (handler: typeof channels, body: unknown, id = RUN, key: string | n
 beforeEach(() => {
   vi.clearAllMocks();
   process.env.AGENT_API_KEY = KEY;
-  db.run.findUnique.mockResolvedValue({ id: RUN, countryCode: "IT", status: "running" });
+  db.run.findUnique.mockResolvedValue({ id: RUN, countryCode: "IT", status: "running", startedAt: new Date() });
 });
 
 describe("status rules", () => {
@@ -84,6 +86,7 @@ describe("POST /runs/:id/channels", () => {
     const data = db.tx.channelResult.create.mock.calls[0][0].data;
     expect(data.screenshots.create).toEqual([{ blobUrl: "https://blob.example/a.png", tOffsetSec: 10, kind: "periodic" }]);
     expect(data.rawBufferUrl).toBe("https://blob.example/raw.gz");
+    expect(alerts.recordCriticalFindings).toHaveBeenCalledWith("IT", expect.any(Date), expect.objectContaining({ id: "r1" }));
     expect((await call(channels, { ...body, screenshots: [{ tOffsetSec: 1, kind: "x", blobUrl: "not a url" }] })).status).toBe(400);
   });
 
@@ -123,6 +126,22 @@ describe("POST /runs/:id/finish", () => {
     });
     expect(db.run.update.mock.calls[0][0].data.finishedAt).toBeInstanceOf(Date);
     expect(sendDailyReport).not.toHaveBeenCalled(); // on-demand runs do not send the daily report
+  });
+
+  it("finalizes alerts for a completed run, and an alert failure does not fail the call", async () => {
+    db.channelResult.findMany.mockResolvedValue([]);
+    db.run.update.mockResolvedValue({ id: RUN, status: "completed", trigger: "on_demand", log: null });
+    alerts.finalizeAlerts.mockRejectedValueOnce(new Error("db hiccup"));
+    const res = await call(finish as typeof channels, {});
+    expect(res.status).toBe(200);
+    expect(alerts.finalizeAlerts).toHaveBeenCalledWith(RUN);
+  });
+
+  it("does not finalize alerts for a failed run", async () => {
+    db.channelResult.findMany.mockResolvedValue([]);
+    db.run.update.mockResolvedValue({ id: RUN, status: "failed", trigger: "on_demand", log: null });
+    await call(finish as typeof channels, { status: "failed" });
+    expect(alerts.finalizeAlerts).not.toHaveBeenCalled();
   });
 
   it("closes the job of an on-demand run", async () => {
