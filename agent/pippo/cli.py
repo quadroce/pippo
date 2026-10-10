@@ -19,6 +19,9 @@ def main(argv: list[str] | None = None) -> int:
     disc.add_argument("--url", help="entry URL (default: https://pluto.tv/<country>/)")
     disc.add_argument("--headless", action="store_true", help="run Chrome without a window")
     disc.add_argument("--wait", type=float, default=4.0, help="extra seconds to wait after each page load")
+    img = sub.add_parser("images", help="run the images & artwork probe on home and EPG")
+    img.add_argument("--country", required=True)
+    img.add_argument("--headless", action="store_true", help="run Chrome without a window")
     sub.add_parser("run", help="run a measurement (Phase 1+)")
     args = parser.parse_args(argv)
 
@@ -59,6 +62,20 @@ def main(argv: list[str] | None = None) -> int:
         url = args.url or f"https://pluto.tv/{country.lower()}/"
         out = run_discovery(country, url, args.headless, args.wait)
         print(f"Discovery written to {out}")
+        return 0
+
+    if args.command == "images":
+        from pippo.images_run import run_images
+
+        report, out = run_images(args.country.upper(), args.headless)
+        for name, pg in report["pages"].items():
+            m = pg["metrics"]
+            print(f"{name}: {m['img.total_count']} images, broken {m['img.broken_ratio']:.1%}, "
+                  f"aspect issues {m['img.aspect_mismatch']}, lazy-load max {m['img.lazy_load_timeout']}s")
+        for c in report["checks"]:
+            if not c["passed"]:
+                print(f"[{c['severity'].upper()}] {c['scope']} {c['checkId']}: {c['value']} > {c['threshold']} {c['detail']}")
+        print(f"Report written to {out}")
         return 0
 
     print(f"'{args.command}' is not implemented yet (see docs/07-IMPLEMENTATION-PLAN.md)")

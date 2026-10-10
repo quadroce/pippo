@@ -68,3 +68,17 @@ cd agent
 ```
 
 By default the service runs as LocalSystem. If your VPN client or Chrome profile only work in your own session, install with `-Credential (Get-Credential)` to run it as your user (the password goes to NSSM, never into a file). Requires a configured `.env` and the virtual environment; the script stops with a clear message otherwise.
+
+## Images probe (Phase 1)
+
+```
+python -m pippo images --country IT --headless
+```
+
+Crawls the home page (`/it/home/`) and the live guide, scrolling the page to the end and every horizontal carousel, and inventories all `<img>` and CSS background images. The inventory is accumulated across scroll steps because the guide is virtualized (rows leave the DOM when scrolled past). Computes `img.broken_ratio`, `img.placeholder_ratio`, `img.aspect_mismatch`, `img.lazy_load_timeout`, plus info metrics, and writes `agent/reports/images-<cc>-<timestamp>.json` (git-ignored).
+
+- **Placeholders**: put known fallback images in `agent/placeholders/` (png/jpg/webp). Without a library the placeholder check is skipped and says so in its detail.
+- **Aspect check**: flags artwork whose natural ratio is off for its card type (inferred from the URL, e.g. `screenshot16_9` must be 16:9, tolerance 5%) and images rendered with a different ratio than their natural one (only when `object-fit` is `fill`).
+- Thresholds are the catalog defaults in `pippo/thresholds.py`.
+
+First live result (Italy, 2026-10-10): home 106 images and guide 386, none broken, one 16:9 thumbnail actually served as 4:3.

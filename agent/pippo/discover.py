@@ -24,6 +24,7 @@ from urllib.parse import urlparse
 from playwright.sync_api import BrowserContext, Page, Response, sync_playwright
 
 from pippo import __version__
+from pippo.browser import open_context
 from pippo.config import AGENT_DIR
 
 log = logging.getLogger(__name__)
@@ -205,27 +206,9 @@ def run_discovery(country: str, entry_url: str, headless: bool, extra_wait: floa
     stamp = datetime.now().strftime("%Y%m%d-%H%M%S")
     out = (out_root or AGENT_DIR / "discovery") / country / stamp
     out.mkdir(parents=True, exist_ok=True)
-    profile_dir = AGENT_DIR / "profiles" / country
-    profile_dir.mkdir(parents=True, exist_ok=True)
-
     dom: dict = {}
     with sync_playwright() as p:
-        # Read the Chrome version first so the User-Agent can carry the robot marker (PRD NFR).
-        probe = p.chromium.launch(channel="chrome", headless=True)
-        major = probe.version.split(".")[0]
-        probe.close()
-        ua = (
-            f"Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) "
-            f"Chrome/{major}.0.0.0 Safari/537.36 PippoAgent/{__version__}"
-        )
-        ctx: BrowserContext = p.chromium.launch_persistent_context(
-            str(profile_dir),
-            channel="chrome",
-            headless=headless,
-            user_agent=ua,
-            viewport={"width": 1440, "height": 900},
-            locale=None,
-        )
+        ctx: BrowserContext = open_context(p, country, headless)
         try:
             page = ctx.pages[0] if ctx.pages else ctx.new_page()
             rec = Recorder(out)
