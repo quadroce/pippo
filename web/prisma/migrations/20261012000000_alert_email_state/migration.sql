@@ -1,0 +1,1 @@
+ALTER TABLE "Alert" ADD COLUMN "emailState" TEXT NOT NULL DEFAULT 'pending';

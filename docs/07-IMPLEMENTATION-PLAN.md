@@ -59,7 +59,7 @@ Status: ⬜ todo · 🟨 in progress · ✅ done
 | 2.2 | `player.*` checks; DRM detection and fallback | 🟨 11 checks done; ad-break checks and DRM fallback screenshots pending |
 | 2.3 | 4 parallel contexts, error isolation, screenshots to Blob (signed URLs) | 🟨 pool, isolation, incremental upload done; Blob upload only mocked, no full 127-channel run yet |
 | 2.4 | Job queue (long-poll, ack) and Run test page with progress | 🟨 queue, poller and page done; not run against a real database or agent yet |
-| 2.5 | Channel detail with history; Alerts page; de-duplication and country-wide aggregation | ⬜ |
+| 2.5 | Channel detail with history; Alerts page; de-duplication and country-wide aggregation | 🟨 alerts, emails, Alerts page and channel detail done; unverified against a real database and Blob |
 
 ### Phase 3 — EPG (M3)
 
