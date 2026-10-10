@@ -35,3 +35,16 @@ def grade(check_id: str, value: float, overrides: dict[str, Threshold] | None = 
     if t.warn is not None and value > t.warn:
         return "warning", t.warn
     return "ok", None
+
+
+def parse_thresholds(reply: dict) -> dict[str, Threshold]:
+    """Effective thresholds from a heartbeat reply ({checkId: {warn, critical}}). Bad entries are skipped."""
+    out: dict[str, Threshold] = {}
+    for check_id, raw in (reply.get("thresholds") or {}).items():
+        if not isinstance(raw, dict):
+            continue
+        warn, critical = raw.get("warn"), raw.get("critical")
+        ok = lambda v: v is None or (isinstance(v, (int, float)) and not isinstance(v, bool) and v >= 0)  # noqa: E731
+        if ok(warn) and ok(critical):
+            out[check_id] = Threshold(warn=warn, critical=critical)
+    return out
