@@ -26,6 +26,9 @@ export async function POST(req: Request, ctx: { params: Promise<{ id: string }> 
     data: { status: body.data.status, finishedAt: new Date(), ...(body.data.log ? { log: body.data.log } : {}) },
   });
 
+  // An on-demand run closes its job (the run status tells whether it succeeded).
+  if (run.jobId) await prisma.job.update({ where: { id: run.jobId }, data: { status: "done" } });
+
   // The report must never make the agent's finish call fail: errors are recorded in the run log.
   let reportSentTo = 0;
   if (run.trigger === "scheduled" && run.status === "completed") {

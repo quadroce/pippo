@@ -10,6 +10,7 @@ const db = vi.hoisted(() => {
   return {
     tx,
     run: { findUnique: vi.fn(), update: vi.fn() },
+    job: { update: vi.fn() },
     channelResult: { findMany: vi.fn() },
     $transaction: vi.fn(async (fn: (t: typeof tx) => unknown) => fn(tx)),
   };
@@ -122,6 +123,13 @@ describe("POST /runs/:id/finish", () => {
     });
     expect(db.run.update.mock.calls[0][0].data.finishedAt).toBeInstanceOf(Date);
     expect(sendDailyReport).not.toHaveBeenCalled(); // on-demand runs do not send the daily report
+  });
+
+  it("closes the job of an on-demand run", async () => {
+    db.channelResult.findMany.mockResolvedValue([]);
+    db.run.update.mockResolvedValue({ id: RUN, status: "completed", trigger: "on_demand", log: null, jobId: "job-1" });
+    await call(finish as typeof channels, {});
+    expect(db.job.update).toHaveBeenCalledWith({ where: { id: "job-1" }, data: { status: "done" } });
   });
 
   it("sends the daily report for a completed scheduled run", async () => {

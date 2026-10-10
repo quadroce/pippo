@@ -151,17 +151,34 @@ def _revive(p, ctx, open_ctx, country: str, k: int, headless: bool):
         return open_ctx(p, f"{country}-w{k}", headless)
 
 
-def player_measure_for(settings, country: str, headless: bool, overrides=None, limit: int | None = None):
-    """Adapter for runner.execute_run: measures the guide's channels with the configured window and parallelism."""
+def player_measure_for(
+    settings,
+    country: str,
+    headless: bool,
+    overrides=None,
+    limit: int | None = None,
+    window_sec: int | None = None,
+    only_slugs: set[str] | None = None,
+):
+    """Adapter for runner.execute_run: measures the guide's channels with the configured window and parallelism.
+
+    `only_slugs` restricts the run to those channels (on-demand jobs); requested channels that the
+    guide does not list are reported as `error` results so the request is never silently shortened.
+    """
+    window = window_sec or settings.observation_window_sec
 
     def run(channels: list[GuideChannel], on_result: Callable[[ChannelOutcome], None]) -> None:
         chosen = channels[:limit] if limit else channels
-        log.info("measuring %d channels, %d at a time, %ds each", len(chosen), settings.parallelism, settings.observation_window_sec)
+        if only_slugs is not None:
+            chosen = [c for c in chosen if c.slug in only_slugs]
+            for slug in sorted(only_slugs - {c.slug for c in channels}):
+                on_result(ChannelOutcome(GuideChannel(slug, slug, None, None, None), error="channel not found in the current guide"))
+        log.info("measuring %d channels, %d at a time, %ds each", len(chosen), settings.parallelism, window)
         measure_players(
             country,
             chosen,
             on_result,
-            window_sec=settings.observation_window_sec,
+            window_sec=window,
             parallelism=settings.parallelism,
             headless=headless,
             overrides=overrides,

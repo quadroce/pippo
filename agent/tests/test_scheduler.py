@@ -1,11 +1,12 @@
 import threading
+import time
 
 import httpx
 
 from pippo.agent_loop import heartbeat_once
 from pippo.api_client import ApiClient
 from pippo.config import Settings
-from pippo.scheduler import DailyScheduler, Schedule, parse_schedule
+from pippo.scheduler import DailyScheduler, RunGate, Schedule, parse_schedule
 
 REPLY = {"activeCountry": "IT", "schedule": {"countryCode": "it", "runHour": "06:30", "timezone": "Europe/Rome"}}
 
@@ -33,7 +34,7 @@ def test_apply_creates_replaces_and_removes_the_job():
         s.shutdown()
 
 
-def test_fire_runs_the_callback_and_never_overlaps():
+def test_fire_waits_for_a_running_job_instead_of_overlapping_or_dropping():
     started, release, calls = threading.Event(), threading.Event(), []
 
     def slow(country):
@@ -41,23 +42,37 @@ def test_fire_runs_the_callback_and_never_overlaps():
         started.set()
         release.wait(2)
 
-    s = DailyScheduler(slow)
-    t = threading.Thread(target=s._fire, args=("IT",))
-    t.start()
+    s = DailyScheduler(slow, wait_sec=5)
+    first = threading.Thread(target=s._fire, args=("IT",))
+    first.start()
     assert started.wait(2)
-    s._fire("IT")                      # second trigger while the first is running: skipped
+    second = threading.Thread(target=s._fire, args=("FR",))
+    second.start()
+    time.sleep(0.2)
+    assert calls == ["IT"]                      # the second one waits, it does not run concurrently
     release.set()
-    t.join(2)
-    assert calls == ["IT"]
+    first.join(3)
+    second.join(3)
+    assert calls == ["IT", "FR"]                # and it is not lost
 
 
-def test_fire_swallows_errors_and_releases_the_lock():
+def test_fire_gives_up_when_the_agent_stays_busy_too_long():
+    gate = RunGate()
+    gate.acquire()
+    calls = []
+    s = DailyScheduler(lambda c: calls.append(c), gate=gate, wait_sec=0.1)
+    s._fire("IT")
+    assert calls == []
+    gate.release()
+
+
+def test_fire_swallows_errors_and_releases_the_gate():
     def boom(country):
         raise RuntimeError("chrome crashed")
 
     s = DailyScheduler(boom)
     s._fire("IT")
-    assert s._busy.acquire(blocking=False)   # lock was released after the failure
+    assert not s.gate.busy
 
 
 def test_heartbeat_once_returns_the_reply_with_the_schedule():

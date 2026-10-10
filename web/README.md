@@ -98,3 +98,16 @@ The heartbeat response includes the effective `thresholds` so the agent grades i
 - **Remove**: sets `User.active = false` and deletes the user's sessions immediately; history (jobs, acknowledged alerts) stays. You cannot remove yourself or the last admin. Inviting the same email again restores access.
 - Sign-in requires an existing **active** user (`auth.ts`); the seed re-activates the first admin.
 - Every action is written to the audit log (`user.invite`, `user.restore`, `user.role`, `user.remove`). Migration `20261011000000_user_active` adds `User.active`.
+
+## On-demand tests: Run test page and job queue (step 2.4)
+
+`/run-test` (any signed-in member): choose a country, **selected channels** (search and multi-select, from the channels the agent has already reported) or the **entire country**, an observation window (30, 60 or 120 s) and whether to include the images checks. A warning appears when the chosen country differs from the country the agent currently detects. Submitting creates a `Job` (`pending`); the page refreshes itself every 4 seconds while a job is active and shows each job as queued, picked up, "N of M channels measured" and finished, with a link to the resulting run. If the agent is offline it says so; a pending job expires after 6 hours.
+
+Agent endpoints (Bearer key):
+
+| Route | Purpose |
+|-------|---------|
+| `GET /api/agent/jobs` | Oldest pending job `{id, countryCode, channelIds, windowSec, includeImages}`; long-polls up to 20 s (`?wait=0` to answer at once); expires stale jobs |
+| `POST /api/agent/jobs/:id/ack` | Pending to running; only one caller wins, a job no longer pending answers 409 |
+
+A run created with `jobId` closes its job as `done` when it finishes (or is created blocked); the run status tells whether it succeeded. A job that was acknowledged but never produced a run is expired after 12 hours. Launching a test is audit-logged (`job.create`).

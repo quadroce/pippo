@@ -41,8 +41,17 @@ class Measurement:
 
 
 def measure(
-    country: str, headless: bool, profile: Profile | None = None, overrides: dict[str, Threshold] | None = None
+    country: str,
+    headless: bool,
+    profile: Profile | None = None,
+    overrides: dict[str, Threshold] | None = None,
+    guide_only: bool = False,
 ) -> Measurement:
+    """Images checks on home and guide, plus the channel list.
+
+    `guide_only` skips the images work and only loads the guide to learn the channels (used by
+    on-demand tests that do not include images).
+    """
     profile = profile or Profile.load()
     if profile.country != country:
         raise SystemExit(f"pluto_profile.yaml is for {profile.country}, not {country}")
@@ -57,12 +66,17 @@ def measure(
             ua = page.evaluate("navigator.userAgent")
             net = NetworkImages(page)
             guide.attach(page)
-            for name, key in PAGES:
+            for name, key in (PAGES[1:] if guide_only else PAGES):
                 url = profile.page_url(key)
                 log.info("crawling %s: %s", name, url)
                 pages.append(crawl_page(page, net, name, url, progress=log.info))
         finally:
             ctx.close()
+
+    if guide_only:
+        channels = sorted(guide.channels.values(), key=lambda c: c.name.lower())
+        report = {"pages": {}, "checks": [], "country": country, "agentVersion": __version__}
+        return Measurement(report, channels, {}, guide.total)
 
     urls = sorted({i.src for pg in pages for i in pg.items if i.kind == "img" and i.src.startswith("http")})
     placeholders = load_placeholder_hashes()

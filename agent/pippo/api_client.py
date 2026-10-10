@@ -97,3 +97,12 @@ class ApiClient:
             headers={"Content-Type": content_type},
         ).json()
 
+    def next_jobs(self, wait: bool = True) -> list[dict]:
+        """GET /api/agent/jobs: pending on-demand jobs, oldest first. Long-polls up to ~20 s when `wait`."""
+        params = {} if wait else {"wait": "0"}
+        return self.request("GET", "/api/agent/jobs", params=params).json().get("jobs", [])
+
+    def ack_job(self, job_id: str) -> None:
+        """POST /api/agent/jobs/:id/ack. Raises ApiError(409) when another caller already took the job."""
+        self.request("POST", f"/api/agent/jobs/{job_id}/ack")
+

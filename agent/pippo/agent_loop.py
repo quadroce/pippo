@@ -8,7 +8,8 @@ from pippo import __version__
 from pippo.api_client import ApiClient, ApiError
 from pippo.config import Settings
 from pippo.precheck import PrecheckResult, compare_countries, detect_ip_country
-from pippo.scheduler import DailyScheduler, parse_schedule
+from pippo.jobs import JobPoller, slugs_from_channel_ids
+from pippo.scheduler import DailyScheduler, RunGate, parse_schedule
 from pippo.thresholds import Threshold, parse_thresholds
 
 log = logging.getLogger(__name__)
@@ -74,11 +75,43 @@ def _scheduled_run(settings: Settings, country: str) -> None:
         api.close()
 
 
+def run_job(settings: Settings, job: dict) -> None:
+    """Body of an on-demand job: the requested channels (or the whole country) with the requested window."""
+    from pippo.images_run import measure
+    from pippo.players_run import player_measure_for
+    from pippo.runner import RunBlocked, execute_run
+
+    country = job["countryCode"]
+    only = slugs_from_channel_ids(job["channelIds"], country)
+    api = ApiClient(settings)
+    try:
+        overrides = server_thresholds(settings, api)
+        out = execute_run(
+            api,
+            settings,
+            country,
+            lambda: measure(country, headless=True, overrides=overrides, guide_only=not job["includeImages"]),
+            trigger="on_demand",
+            measure_players=player_measure_for(
+                settings, country, True, overrides, window_sec=job["windowSec"], only_slugs=only
+            ),
+            job_id=job["id"],
+        )
+        log.info("job %s finished: run %s %s", job["id"], out["runId"], out["counts"])
+    except RunBlocked as e:
+        log.error("job %s blocked: %s", job["id"], e)
+    finally:
+        api.close()
+
+
 def serve(settings: Settings) -> None:
-    """Heartbeat loop plus the daily scheduler. Job polling for on-demand runs arrives in Phase 2."""
+    """Heartbeat loop, the daily scheduler and the on-demand job poller (they share one run gate)."""
     client = ApiClient(settings)
-    scheduler = DailyScheduler(lambda country: _scheduled_run(settings, country))
+    gate = RunGate()
+    scheduler = DailyScheduler(lambda country: _scheduled_run(settings, country), gate=gate)
     scheduler.start()
+    poller = JobPoller(settings, gate, lambda job: run_job(settings, job))
+    poller.start()
     try:
         while True:
             try:
@@ -91,5 +124,6 @@ def serve(settings: Settings) -> None:
     except KeyboardInterrupt:
         log.info("stopped")
     finally:
+        poller.stop()
         scheduler.shutdown()
         client.close()
