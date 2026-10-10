@@ -22,6 +22,18 @@ DEFAULTS: dict[str, Threshold] = {
     "img.lazy_load_timeout": Threshold(warn=5.0),
     "img.aspect_mismatch": Threshold(warn=0),       # any mismatch (> 0 items)
     "img.channel_logo_missing": Threshold(warn=0),  # any
+    # Player (docs/03-CHECK-CATALOG.md section B). Times in ms for ttff and stalls, seconds for the rest.
+    "player.start_failed": Threshold(critical=0),    # any
+    "player.ttff": Threshold(warn=4000, critical=10000),
+    "player.stall_ratio": Threshold(warn=0.03, critical=0.15),
+    "player.stall_count": Threshold(warn=2),         # catalog: warning at 3 or more
+    "player.longest_stall": Threshold(warn=3000, critical=10000),
+    "player.black_screen": Threshold(warn=3, critical=10),
+    "player.frozen_frame": Threshold(warn=3, critical=10),
+    "player.audio_silence": Threshold(warn=5, critical=20),
+    "player.media_error": Threshold(critical=0),     # any
+    "player.segment_errors": Threshold(warn=0, critical=4),  # catalog: warning at 1+, critical at 5+
+    "player.rendition_switches": Threshold(warn=6),
 }
 
 

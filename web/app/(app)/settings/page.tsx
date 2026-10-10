@@ -9,7 +9,7 @@ import { SimpleForm, ThresholdRow } from "./forms";
 
 export const dynamic = "force-dynamic";
 
-const UNIT_LABEL: Record<Unit, string> = { ratio: "%", seconds: "s", count: "count" };
+const UNIT_LABEL: Record<Unit, string> = { ratio: "%", seconds: "s", ms: "ms", count: "count" };
 
 export default async function SettingsPage() {
   await requireAdmin();

@@ -111,3 +111,22 @@ Heartbeat response contract, updated: `{"activeCountry": "IT", "pollIntervalSec"
 ## Thresholds from the web app
 
 Each run (`pippo run` and the scheduled job) first sends a heartbeat and uses the `thresholds` in the reply to grade the checks, so values changed in Settings apply to the next run. If the web app cannot be reached the built-in defaults in `pippo/thresholds.py` are used and a warning is logged. The reply format is `{"thresholds": {"img.broken_ratio": {"warn": 0.01, "critical": 0.05}, ...}}` (ratios 0..1, `null` = level disabled).
+
+## Player probe (Phase 2)
+
+```
+python -m pippo channel --country IT --id 32276 --window 60 --headless
+```
+
+`--id` is the number in the channel link (`/it/watch/live-tv/32276/`). It opens the channel, records the window and writes `agent/reports/channel-<cc>-<id>-<timestamp>/` with `result.json` (metrics and checks), `raw-buffer.json` (the full recording) and screenshots at 10, 30 and 60 s plus one on the first media error. Nothing is uploaded yet (step 2.3).
+
+**Recorder** (`pippo/recorder.py`): an init script attaches to the page's `<video>` and records player events, a frame sample every second (mean luminance and difference from the previous frame on a 32x18 canvas), the audio level every 500 ms (Web Audio analyser) and, from Playwright, every HLS playlist and segment request (path, status, size, time; query strings with tokens are never stored).
+
+**Checks** (`pippo/probes/player.py`, thresholds in `pippo/thresholds.py` and editable in Settings): `player.start_failed`, `ttff`, `stall_ratio`, `stall_count`, `longest_stall`, `black_screen`, `frozen_frame`, `audio_silence`, `media_error`, `segment_errors`, `rendition_switches`, plus info metrics `bitrate_avg` and `drm_detected`.
+
+Things learned on the real site (Italy) and how they are handled:
+- Pluto restarts its source once at start-up, so the first `playing` event is not the real start. Stalls are counted only after the first frame that advances; start-up buffering belongs to TTFF.
+- Pluto autoplays **muted**. The recorder unmutes the video once and sends the audio through a zero-gain node, so the audio check works and the PC stays silent. If the audio context does not run or the video stays muted the silence check is skipped and says why.
+- Requests the player aborts itself (`ERR_ABORTED`) are not counted as segment errors.
+- **TTFF is measured from navigation start**, not from a click, so it includes page load (about 2 s). On the first live test a news channel reached 12.6 s in headless Chrome, which grades critical (> 10 s). Treat the first weeks of values as calibration input before trusting that threshold.
+- Not yet implemented: `player.now_playing_mismatch` (Phase 3, needs the EPG), `player.ad_break_detected` and `player.ad_return_failed` (manifest markers), ad-slate detection for the frozen-frame check, frame checks on DRM content (they are skipped and flagged).

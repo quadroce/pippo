@@ -7,7 +7,7 @@
  * ratios as percentages.
  */
 
-export type Unit = "ratio" | "seconds" | "count";
+export type Unit = "ratio" | "seconds" | "ms" | "count";
 
 export type CheckDef = {
   id: string;
@@ -52,6 +52,83 @@ export const CHECK_CATALOG: CheckDef[] = [
     unit: "count",
     description: "Evaluated per channel: any missing or broken logo.",
     defaults: { warn: 0, critical: null },
+  },
+  {
+    id: "player.start_failed",
+    name: "Playback did not start",
+    unit: "count",
+    description: "No playback within 15 s or a media error before the first frame. Any occurrence is critical.",
+    defaults: { warn: null, critical: 0 },
+  },
+  {
+    id: "player.ttff",
+    name: "Time to first frame",
+    unit: "ms",
+    description: "Measured from the start of the page load until the first frame advances.",
+    defaults: { warn: 4000, critical: 10000 },
+  },
+  {
+    id: "player.stall_ratio",
+    name: "Stall ratio",
+    unit: "ratio",
+    description: "Time spent stalled after the first frame, divided by the observation window.",
+    defaults: { warn: 0.03, critical: 0.15 },
+  },
+  {
+    id: "player.stall_count",
+    name: "Stall count",
+    unit: "count",
+    description: "Stall episodes longer than 250 ms. The default warns at 3 or more.",
+    defaults: { warn: 2, critical: null },
+  },
+  {
+    id: "player.longest_stall",
+    name: "Longest stall",
+    unit: "ms",
+    description: "Longest single stall episode.",
+    defaults: { warn: 3000, critical: 10000 },
+  },
+  {
+    id: "player.black_screen",
+    name: "Black screen",
+    unit: "seconds",
+    description: "Longest run of black frames while playback advances. Not measurable on DRM content.",
+    defaults: { warn: 3, critical: 10 },
+  },
+  {
+    id: "player.frozen_frame",
+    name: "Frozen frame",
+    unit: "seconds",
+    description: "Longest run of identical frames while playback advances. Not measurable on DRM content.",
+    defaults: { warn: 3, critical: 10 },
+  },
+  {
+    id: "player.audio_silence",
+    name: "Silent audio",
+    unit: "seconds",
+    description: "Longest silence (below -60 dBFS) while the video advances.",
+    defaults: { warn: 5, critical: 20 },
+  },
+  {
+    id: "player.media_error",
+    name: "Media errors",
+    unit: "count",
+    description: "Any media error reported by the player is critical.",
+    defaults: { warn: null, critical: 0 },
+  },
+  {
+    id: "player.segment_errors",
+    name: "Segment errors",
+    unit: "count",
+    description: "HLS playlist or segment requests that failed. The default warns at 1 or more, critical at 5 or more.",
+    defaults: { warn: 0, critical: 4 },
+  },
+  {
+    id: "player.rendition_switches",
+    name: "Rendition switches",
+    unit: "count",
+    description: "Quality level changes during the window.",
+    defaults: { warn: 6, critical: null },
   },
 ];
 
