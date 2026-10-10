@@ -49,6 +49,7 @@ Status: ⬜ todo · 🟨 in progress · ✅ done
 | 1.3 | Run/result upload; Overview, Runs, Channels pages (image columns) | 🟨 API, upload client and pages done; Channels filters/sort and Overview sparkline pending |
 | 1.4 | APScheduler daily run; daily report email | 🟨 scheduler and report email done and unit-tested; needs a real end-to-end run after deploy |
 | 1.5 | Global thresholds in Settings | 🟨 Settings page, thresholds applied by the agent; needs a real run after deploy |
+| 1.6 | Users and invitations (added: without it nobody but the first admin can sign in) | ✅ |
 
 ### Phase 2 — Player, on-demand, alerts (M2)
 
