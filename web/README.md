@@ -77,3 +77,14 @@ When a **scheduled** run is closed as `completed` (`POST /api/agent/runs/:id/fin
 - `POST /api/agent/heartbeat` now also returns `schedule: {countryCode, runHour, timezone}` for the active country (`Country.runHour`, default `06:00` local time) so the agent knows when to run.
 - Without SMTP credentials emails are printed to the server console in development (see Authentication).
 - Not yet done: the Vercel Cron "no run received today" notice, "agent offline" notice and React Email templates (plain HTML for now).
+
+## Settings page (step 1.5, admin only)
+
+`/settings` (link visible to admins; the page and every server action re-check the role):
+
+- **Active country**: the country the agent measures next (must be an active country). A reminder to switch the VPN is shown after saving.
+- **Thresholds (global)**: warning and critical value per check, ratios as percentages; an empty field disables that level; the critical value cannot be lower than the warning value; "Reset to default" removes the override. Stored in Setting `thresholds.global` as overrides over the catalog in `lib/thresholds.ts` (which mirrors `agent/pippo/thresholds.py` and the [check catalog](../docs/03-CHECK-CATALOG.md); new checks are added to both as phases land). Per-country overrides (`ThresholdOverride`) come in Phase 5.
+- **Daily report recipients**: Setting `email.reportRecipients`; empty falls back to `ADMIN_EMAIL`.
+- **Recent changes**: the last 20 entries of `AuditLog` (every save and reset is recorded with the user and the old and new values).
+
+The heartbeat response includes the effective `thresholds` so the agent grades its checks with the values set here (at the start of each run); if the web app is unreachable the agent uses its built-in defaults. Not yet in Settings: users and invitations, countries editing, agent key rotation, send-test-email.

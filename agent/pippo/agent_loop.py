@@ -9,6 +9,7 @@ from pippo.api_client import ApiClient, ApiError
 from pippo.config import Settings
 from pippo.precheck import PrecheckResult, compare_countries, detect_ip_country
 from pippo.scheduler import DailyScheduler, parse_schedule
+from pippo.thresholds import Threshold, parse_thresholds
 
 log = logging.getLogger(__name__)
 
@@ -36,6 +37,18 @@ def heartbeat_once(settings: Settings, client: ApiClient) -> tuple[PrecheckResul
     return result, reply
 
 
+def server_thresholds(settings: Settings, client: ApiClient) -> dict[str, Threshold]:
+    """Global thresholds set in the web app's Settings. Falls back to the built-in defaults if unreachable."""
+    try:
+        _, reply = heartbeat_once(settings, client)
+        found = parse_thresholds(reply)
+        log.info("using %d thresholds from the web app", len(found))
+        return found
+    except ApiError as e:
+        log.warning("could not fetch thresholds (%s): using built-in defaults", e)
+        return {}
+
+
 def _scheduled_run(settings: Settings, country: str) -> None:
     """Body of the daily job: a full run with trigger "scheduled" (this sends the daily report)."""
     from pippo.api_client import ApiClient
@@ -44,7 +57,10 @@ def _scheduled_run(settings: Settings, country: str) -> None:
 
     api = ApiClient(settings)
     try:
-        out = execute_run(api, settings, country, lambda: measure(country, headless=True), trigger="scheduled")
+        overrides = server_thresholds(settings, api)
+        out = execute_run(
+            api, settings, country, lambda: measure(country, headless=True, overrides=overrides), trigger="scheduled"
+        )
         log.info("scheduled run %s completed: %s", out["runId"], out["counts"])
     except RunBlocked as e:
         log.error("scheduled run blocked: %s", e)

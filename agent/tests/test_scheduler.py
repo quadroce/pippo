@@ -76,3 +76,30 @@ def test_heartbeat_once_returns_the_reply_with_the_schedule():
     finally:
         loop.detect_ip_country = original
     assert result.ok and parse_schedule(reply) == Schedule("IT", 6, 30, "Europe/Rome")
+
+
+def test_parse_thresholds_and_effect_on_grading():
+    from pippo.thresholds import Threshold, grade, parse_thresholds
+
+    reply = {"thresholds": {"img.broken_ratio": {"warn": 0.10, "critical": None}, "bad": "x", "neg": {"warn": -1, "critical": None}}}
+    t = parse_thresholds(reply)
+    assert t == {"img.broken_ratio": Threshold(warn=0.10, critical=None)}
+    assert grade("img.broken_ratio", 0.06)[0] == "critical"          # built-in default
+    assert grade("img.broken_ratio", 0.06, t)[0] == "ok"             # relaxed from Settings
+    assert grade("img.broken_ratio", 0.2, t) == ("warning", 0.10)    # critical level disabled
+    assert parse_thresholds({}) == {}
+
+
+def test_server_thresholds_falls_back_when_the_server_is_down():
+    from pippo.agent_loop import server_thresholds
+
+    S = Settings(api_base_url="https://x.test", agent_api_key="k", http_retries=0)
+    api = ApiClient(S, transport=httpx.MockTransport(lambda r: httpx.Response(500)), sleep=lambda s: None)
+    import pippo.agent_loop as loop
+
+    original = loop.detect_ip_country
+    loop.detect_ip_country = lambda settings: "IT"
+    try:
+        assert server_thresholds(S, api) == {}
+    finally:
+        loop.detect_ip_country = original

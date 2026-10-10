@@ -87,6 +87,7 @@ def main(argv: list[str] | None = None) -> int:
             print("
 ".join(problems))
             return 2
+        from pippo.agent_loop import server_thresholds
         from pippo.api_client import ApiClient, ApiError
         from pippo.images_run import measure
         from pippo.runner import RunBlocked, execute_run
@@ -94,7 +95,10 @@ def main(argv: list[str] | None = None) -> int:
         country = args.country.upper()
         api = ApiClient(settings)
         try:
-            out = execute_run(api, settings, country, lambda: measure(country, args.headless), args.trigger)
+            overrides = server_thresholds(settings, api)
+            out = execute_run(
+                api, settings, country, lambda: measure(country, args.headless, overrides=overrides), args.trigger
+            )
         except RunBlocked as e:
             print(f"BLOCKED: {e}")
             return 1

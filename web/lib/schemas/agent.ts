@@ -25,6 +25,8 @@ export const heartbeatResponse = z.object({
   schedule: z
     .object({ countryCode: z.string(), runHour: z.string().regex(/^\d{2}:\d{2}$/), timezone: z.string() })
     .nullable(),
+  // Effective global thresholds per checkId (Settings overrides on top of the catalog defaults).
+  thresholds: z.record(z.string(), z.object({ warn: z.number().nullable(), critical: z.number().nullable() })),
 });
 export type HeartbeatResponse = z.infer<typeof heartbeatResponse>;
 

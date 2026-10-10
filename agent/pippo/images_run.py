@@ -25,6 +25,7 @@ from pippo.probes.images import (
 )
 from pippo.probes.logos import channel_logo_checks
 from pippo.profile import Profile
+from pippo.thresholds import Threshold
 
 log = logging.getLogger(__name__)
 
@@ -39,7 +40,9 @@ class Measurement:
     guide_total: int | None
 
 
-def measure(country: str, headless: bool, profile: Profile | None = None) -> Measurement:
+def measure(
+    country: str, headless: bool, profile: Profile | None = None, overrides: dict[str, Threshold] | None = None
+) -> Measurement:
     profile = profile or Profile.load()
     if profile.country != country:
         raise SystemExit(f"pluto_profile.yaml is for {profile.country}, not {country}")
@@ -71,14 +74,14 @@ def measure(country: str, headless: bool, profile: Profile | None = None) -> Mea
     else:
         log.info("no placeholder library in agent/placeholders/: placeholder check skipped")
 
-    report = compute_checks(pages, hashes, placeholders)
+    report = compute_checks(pages, hashes, placeholders, overrides)
     report.update(country=country, agentVersion=__version__, measuredAt=datetime.now().astimezone().isoformat())
 
     channels = sorted(guide.channels.values(), key=lambda c: c.name.lower())
     if guide.total is not None and len(channels) < guide.total:
         log.warning("guide lists %d channels but only %d were captured while scrolling", guide.total, len(channels))
     epg = next((pg for pg in pages if pg.name == "epg"), None)
-    logo = channel_logo_checks(channels, epg.items if epg else [])
+    logo = channel_logo_checks(channels, epg.items if epg else [], overrides)
     return Measurement(report, channels, logo, guide.total)
 
 

@@ -50,11 +50,13 @@ describe("heartbeat", () => {
     db.country.findUnique.mockResolvedValue({ code: "IT", runHour: "06:00", timezone: "Europe/Rome" });
     const res = await heartbeat(json("heartbeat", { agentVersion: "0.1.0", detectedCountry: "it" }));
     expect(res.status).toBe(200);
-    expect(await res.json()).toEqual({
+    const body = await res.json();
+    expect(body).toMatchObject({
       activeCountry: "IT",
       pollIntervalSec: 10,
       schedule: { countryCode: "IT", runHour: "06:00", timezone: "Europe/Rome" },
     });
+    expect(body.thresholds["img.broken_ratio"]).toEqual({ warn: 0.01, critical: 0.05 }); // defaults when nothing is stored
     expect(db.agent.upsert.mock.calls[0][0].update.detectedCountry).toBe("IT");
   });
 

@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 import { prisma } from "@/lib/db";
 import { checkAgentAuth, parseJson } from "@/lib/agent-route";
+import { getGlobalThresholds } from "@/lib/settings";
 import { heartbeatRequest, type HeartbeatResponse } from "@/lib/schemas/agent";
 
 export const dynamic = "force-dynamic";
@@ -31,9 +32,10 @@ export async function POST(req: Request) {
     },
   });
 
-  const [active, poll] = await Promise.all([
+  const [active, poll, thresholds] = await Promise.all([
     prisma.setting.findUnique({ where: { key: "activeCountry" } }),
     prisma.setting.findUnique({ where: { key: "agent.pollIntervalSec" } }),
+    getGlobalThresholds(),
   ]);
 
   const activeCode = typeof active?.value === "string" ? active.value : null;
@@ -42,6 +44,7 @@ export async function POST(req: Request) {
   const res: HeartbeatResponse = {
     activeCountry: activeCode,
     schedule: country ? { countryCode: country.code, runHour: country.runHour, timezone: country.timezone } : null,
+    thresholds,
     pollIntervalSec: typeof poll?.value === "number" ? poll.value : DEFAULT_POLL_SEC,
   };
   return NextResponse.json(res);

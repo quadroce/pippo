@@ -107,3 +107,7 @@ Steps: detect the country of the public IP, create the run on the web app (the s
 - On-demand job polling arrives in Phase 2.
 
 Heartbeat response contract, updated: `{"activeCountry": "IT", "pollIntervalSec": 10, "schedule": {"countryCode": "IT", "runHour": "06:00", "timezone": "Europe/Rome"}}` (`schedule` is `null` when no country is active).
+
+## Thresholds from the web app
+
+Each run (`pippo run` and the scheduled job) first sends a heartbeat and uses the `thresholds` in the reply to grade the checks, so values changed in Settings apply to the next run. If the web app cannot be reached the built-in defaults in `pippo/thresholds.py` are used and a warning is logged. The reply format is `{"thresholds": {"img.broken_ratio": {"warn": 0.01, "critical": 0.05}, ...}}` (ratios 0..1, `null` = level disabled).
