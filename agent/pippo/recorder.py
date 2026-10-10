@@ -183,7 +183,9 @@ def record_channel(page: Page, url: str, window_sec: int = 60, shots_dir: Path |
                 shots.append(_shot(page, shots_dir, "failure", round(elapsed), "failure"))
 
     buffer = page.evaluate("window.__pippo || null") if not nav_error else None
+    final_url = urlparse(page.url).path  # path only: query strings may carry tokens
     return {
+        "finalPath": final_url,
         "windowSec": window_sec,
         "navError": nav_error,
         "buffer": buffer or {"events": [], "frames": [], "audio": [], "info": {}},

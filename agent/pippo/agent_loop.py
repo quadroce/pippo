@@ -53,13 +53,19 @@ def _scheduled_run(settings: Settings, country: str) -> None:
     """Body of the daily job: a full run with trigger "scheduled" (this sends the daily report)."""
     from pippo.api_client import ApiClient
     from pippo.images_run import measure
+    from pippo.players_run import player_measure_for
     from pippo.runner import RunBlocked, execute_run
 
     api = ApiClient(settings)
     try:
         overrides = server_thresholds(settings, api)
         out = execute_run(
-            api, settings, country, lambda: measure(country, headless=True, overrides=overrides), trigger="scheduled"
+            api,
+            settings,
+            country,
+            lambda: measure(country, headless=True, overrides=overrides),
+            trigger="scheduled",
+            measure_players=player_measure_for(settings, country, True, overrides),
         )
         log.info("scheduled run %s completed: %s", out["runId"], out["counts"])
     except RunBlocked as e:

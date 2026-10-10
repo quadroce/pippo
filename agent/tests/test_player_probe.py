@@ -127,3 +127,14 @@ def test_overrides_change_the_grade():
     relaxed = {"player.ttff": Threshold(warn=20_000, critical=None)}
     assert {c["checkId"]: c for c in measure_buffer(slow, relaxed)["checks"]}["player.ttff"]["passed"]
     assert events and longest_run([True, True, False, True]) == 2
+
+
+def test_redirect_away_from_the_channel_page_counts_as_start_failed():
+    r = rec(network=[seg()])
+    r.update(expectedId="999", finalPath="/it/watch/live-tv/")
+    out = measure_buffer(r)
+    assert out["metrics"]["player.start_failed"] == 1
+    by = {c["checkId"]: c for c in out["checks"]}
+    assert by["player.start_failed"]["severity"] == "critical" and "redirected to /it/watch/live-tv/" in by["player.start_failed"]["detail"]
+    r.update(expectedId="999", finalPath="/it/watch/live-tv/999/")
+    assert measure_buffer(r)["metrics"]["player.start_failed"] == 0

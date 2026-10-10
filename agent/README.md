@@ -130,3 +130,21 @@ Things learned on the real site (Italy) and how they are handled:
 - Requests the player aborts itself (`ERR_ABORTED`) are not counted as segment errors.
 - **TTFF is measured from navigation start**, not from a click, so it includes page load (about 2 s). On the first live test a news channel reached 12.6 s in headless Chrome, which grades critical (> 10 s). Treat the first weeks of values as calibration input before trusting that threshold.
 - Not yet implemented: `player.now_playing_mismatch` (Phase 3, needs the EPG), `player.ad_break_detected` and `player.ad_return_failed` (manifest markers), ad-slate detection for the frozen-frame check, frame checks on DRM content (they are skipped and flagged).
+
+## Full run with player measurements (step 2.3)
+
+```
+python -m pippo run --country IT --headless                 # all channels, parallelism from config.yaml (default 4, 60 s each)
+python -m pippo run --country IT --headless --limit 4       # first 4 channels, for testing
+python -m pippo run --country IT --headless --no-player     # images and logos only
+```
+
+After the images step the agent measures every channel of the guide with `parallelism` worker threads (`players_run.py`). Each worker has **its own Chrome and profile** (`profiles/<CC>-w<k>`) because Playwright's sync API cannot be shared between threads and a persistent profile cannot be opened twice.
+
+- **Error isolation**: a crash on one channel becomes an `error` result for that channel and the worker continues; a worker whose browser died reopens it; if every worker dies the remaining channels are reported as `error` instead of being lost.
+- **Incremental upload**: each channel is uploaded as soon as it is measured (screenshots and the gzipped raw buffer first, each at most 4 MB, then the result with their Blob URLs), so a crash late in a run keeps everything already reported. A channel whose upload fails is logged in the run log and the run still completes; a failure uploading the images result marks the run `failed`.
+- Per channel, local copies are kept in `agent/reports/channels/<slug>/` (`result.json`, `raw-buffer.json`, screenshots).
+- **Redirect check**: a channel page that redirects away from `/live-tv/<id>/` (Pluto sends unknown channels to a page that plays something else) is reported as `player.start_failed`.
+- Duration: about `channels x window / parallelism` (127 channels at 60 s with 4 workers is roughly 32 minutes plus the images step).
+
+Live test with 2 workers: four 25 s recordings finished in 53 s, and an invalid channel id was flagged. Note that **TTFF read 17-23 s with two browsers in parallel** against 12.6 s for a single one: load on the machine inflates it, so the TTFF thresholds need calibration with the production parallelism before alerts rely on them.

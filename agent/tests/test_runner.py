@@ -112,12 +112,27 @@ def test_measurement_crash_closes_run_as_failed(tmp_path):
     assert path.endswith("/finish") and body["status"] == "failed" and "chrome crashed" in body["log"][0]["msg"]
 
 
-def test_upload_failure_keeps_local_copy_and_marks_failed(tmp_path):
+def test_channel_upload_failure_is_recorded_but_the_run_still_completes(tmp_path):
     srv = Server(fail_channels=True)
+    out = run(srv, tmp_path)
+    assert len(out["failedUploads"]) == 1 and "forensic-files-it" in out["failedUploads"][0]
+    path, body = srv.calls[-1]
+    assert path.endswith("/finish") and body["status"] == "completed" and "upload failed" in body["log"][0]["msg"]
+    assert list(tmp_path.glob("run-IT-*.json"))
+
+
+def test_images_upload_failure_marks_the_run_failed(tmp_path):
+    class S(Server):
+        def handler(self, req):
+            if req.url.path.endswith("/images"):
+                self.calls.append((req.url.path, None))
+                return httpx.Response(500)
+            return super().handler(req)
+
+    srv = S()
     with pytest.raises(ApiError):
         run(srv, tmp_path)
-    assert srv.calls[-1][1]["status"] == "failed"
-    assert list(tmp_path.glob("run-IT-*.json"))
+    assert srv.calls[-1][1]["status"] == "failed" and list(tmp_path.glob("run-IT-*.json"))
 
 
 def test_upload_file_sends_query_and_content_type():
