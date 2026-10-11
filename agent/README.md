@@ -167,3 +167,16 @@ Checks (`pippo/probes/epg.py`, thresholds editable in Settings): per channel `ep
 Not implemented, on purpose:
 - `epg.timezone_offset`: Pluto's programme boundaries are not aligned to :00/:30 (for example 16:25:18), so the catalog's method cannot be evaluated; the timezone is verified with the now-marker comparison of the rendering checks (step 3.2).
 - `epg.channel_count_drop` is evaluated by the web app against the previous run when the EPG result arrives.
+
+## EPG rendering checks and now-playing cross-check (Phase 3, step 3.2)
+
+What the live guide page really is (found on pluto.tv/it): a long vertical list of channel rows, each a horizontal carousel of programme tiles. The first tile is the programme on air (the only one with artwork), the following ones are upcoming and text-only. There is **no time axis and no "now" marker**, so two catalog checks do not apply and are not implemented: `epg.now_marker_position` and the timezone check through the marker (`epg.timezone_offset` stays unimplemented, see step 3.1). The rows are virtualized, so they are collected at every scroll step and merged by channel id (`RowCollector`).
+
+Checks (`pippo/probes/epg_render.py`, thresholds editable in Settings):
+- `epg.render_channel_count` (critical, any difference): every API channel must be rendered once, and nothing may be rendered that the API does not list. Channels are matched by the id in their link.
+- `epg.highlight_mismatch` (warning, per channel): the title of the first tile against the programmes the API says are on air when the row was seen, with a 2 minute tolerance at programme boundaries and a forgiving comparison (case, punctuation, one title contained in the other).
+- `epg.empty_cells` (warning above 1 %): visible tiles without text, or an on-air tile without artwork. Tiles scrolled out of view are lazy placeholders and are not counted.
+- `epg.scroll_load_time` (warning above 5 s): longest wait for the visible rows to fill in after a scroll.
+- `player.now_playing_mismatch` (warning, per channel): the title shown on the channel page (`h1` inside `channel-details`, read at the end of the recording) against the EPG programme on air at that moment. Added to the channel result by the runner.
+
+Live result on the Italian guide: 127 of 127 rendered, 0 highlight mismatches, 0 empty tiles of 318 visible, 0.25 s scroll load, and the player title matched the EPG on the two channels tried. Two first versions of `epg.empty_cells` wrongly reported 83 % and 67 % because they counted off-screen placeholders and demanded artwork on upcoming tiles; both were fixed after looking at the real DOM. As in 3.1 the healthy guide passes everything, so the failure paths are covered by unit tests only. Weak spot: for channels named like their single show the title comparison cannot tell channel name from programme title.

@@ -315,6 +315,7 @@ def crawl_page(
     url: str,
     settle_wait: float = 3.0,
     progress: Callable[[str], None] = lambda m: None,
+    on_step: Callable[[Page], None] | None = None,
 ) -> PageImages:
     """Open a page, scroll vertically to the end and every carousel to its end, inventory all images."""
     try:
@@ -331,10 +332,14 @@ def crawl_page(
     last_height = -1
     steps = 0
     seen: dict[tuple[str, str], ImageItem] = {}
+    if on_step:
+        on_step(page)
     for steps in range(1, 41):  # hard cap: ~40 viewports
         page.mouse.wheel(0, 900)
         lazy_max = max(lazy_max, _settle(page))
         merge_into(seen, _collect(page, net))
+        if on_step:
+            on_step(page)
         height = page.evaluate("document.documentElement.scrollHeight")
         at_bottom = page.evaluate("window.innerHeight + window.scrollY >= document.documentElement.scrollHeight - 4")
         if at_bottom and height == last_height:

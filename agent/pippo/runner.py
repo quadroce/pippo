@@ -15,6 +15,7 @@ from pippo.api_client import ApiClient, ApiError
 from pippo.config import AGENT_DIR, Settings
 from pippo.images_run import Measurement
 from pippo.players_run import ChannelOutcome
+from pippo.probes.epg_render import now_playing_check
 from pippo.precheck import detect_ip_country
 
 log = logging.getLogger(__name__)
@@ -123,10 +124,14 @@ def execute_run(
         logo = m.channel_results.get(ch.slug, {"metrics": {}, "checks": []})
         try:
             shots, raw_url = _upload_files(api, run_id, outcome)
+            extra_checks = []
+            np = now_playing_check(outcome.ui_title, outcome.ui_title_at, (m.listings or {}).get(ch.slug))
+            if np:
+                extra_checks.append(np)
             payload = {
                 "channel": {"slug": ch.slug, "name": ch.name, "category": ch.category},
-                "metrics": {**logo["metrics"], **outcome.metrics},
-                "checks": logo["checks"] + outcome.checks,
+                "metrics": {**logo["metrics"], **outcome.metrics, **({"player.now_playing_mismatch": int(not np["passed"])} if np else {})},
+                "checks": logo["checks"] + outcome.checks + extra_checks,
                 "screenshots": shots,
             }
             if outcome.error:

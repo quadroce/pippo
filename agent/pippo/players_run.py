@@ -40,6 +40,8 @@ class ChannelOutcome:
     screenshots: list[dict] = field(default_factory=list)  # {tOffsetSec, kind, path}
     raw_path: Path | None = None
     error: str | None = None
+    ui_title: str | None = None       # programme title shown on the channel page
+    ui_title_at: int | None = None    # epoch ms when it was read
 
 
 def numeric_id(channel: GuideChannel) -> str | None:
@@ -67,7 +69,7 @@ def _measure_one(ctx, profile: Profile, ch: GuideChannel, window_sec: int, overr
     raw = ch_dir / "raw-buffer.json"
     raw.write_text(json.dumps({k: rec[k] for k in ("windowSec", "navError", "buffer", "network")}, default=str), encoding="utf-8")
     (ch_dir / "result.json").write_text(json.dumps(result, indent=1, default=str), encoding="utf-8")
-    return ChannelOutcome(ch, result["metrics"], result["checks"], rec["screenshots"], raw)
+    return ChannelOutcome(ch, result["metrics"], result["checks"], rec["screenshots"], raw, None, rec.get("uiTitle"), rec.get("uiTitleAt"))
 
 
 def measure_players(

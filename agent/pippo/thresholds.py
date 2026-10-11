@@ -42,6 +42,12 @@ DEFAULTS: dict[str, Threshold] = {
     "epg.no_now_program": Threshold(critical=0),
     "epg.missing_metadata": Threshold(warn=0.02),
     "epg.language_mismatch": Threshold(warn=0.20),
+    # EPG rendering (section C.2) and the player/EPG cross-check.
+    "epg.render_channel_count": Threshold(critical=0),   # any difference between API and rendered channels
+    "epg.highlight_mismatch": Threshold(warn=0),
+    "epg.empty_cells": Threshold(warn=0.01),
+    "epg.scroll_load_time": Threshold(warn=5.0),
+    "player.now_playing_mismatch": Threshold(warn=0),
 }
 
 # Checks where a value BELOW the threshold is the failure (hours of programming left, for example).
