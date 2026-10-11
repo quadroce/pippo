@@ -15,7 +15,7 @@ export async function reportRecipients(): Promise<string[]> {
 export async function loadReportInput(runId: string): Promise<ReportInput | null> {
   const run = await prisma.run.findUnique({
     where: { id: runId },
-    include: { country: true, results: { include: { channel: true, checks: true } } },
+    include: { country: true, epg: true, results: { include: { channel: true, checks: true } } },
   });
   if (!run) return null;
 
@@ -40,6 +40,23 @@ export async function loadReportInput(runId: string): Promise<ReportInput | null
       detail: c.detail,
     });
   }
+
+  const epgChecks = Array.isArray(run.epg?.checks)
+    ? (run.epg.checks as { checkId: string; severity: string; passed: boolean; value?: number | null; threshold?: number | null; detail?: string | null }[])
+    : [];
+  for (const c of epgChecks) {
+    if (c.passed || c.severity === "info") continue;
+    issues.push({
+      severity: c.severity as "critical" | "warning",
+      scope: "EPG",
+      checkId: c.checkId,
+      value: c.value ?? null,
+      threshold: c.threshold ?? null,
+      detail: c.detail,
+    });
+  }
+  const em = run.epg?.metrics && typeof run.epg.metrics === "object" ? (run.epg.metrics as Record<string, unknown>) : null;
+  const n = (k: string) => (em && typeof em[k] === "number" ? (em[k] as number) : null);
 
   const previous = await prisma.run.findFirst({
     where: { countryCode: run.countryCode, status: "completed", startedAt: { lt: run.startedAt } },
@@ -73,6 +90,15 @@ export async function loadReportInput(runId: string): Promise<ReportInput | null
         placeholder: Math.round(Number(p.metrics["img.placeholder_ratio"] ?? 0) * total),
       };
     }),
+    epg: em
+      ? {
+          channels: n("epg.channel_count"),
+          coverageHours: n("epg.coverage_hours"),
+          noNow: n("epg.channels_no_now") ?? 0,
+          withGaps: n("epg.channels_with_gaps") ?? 0,
+          withOverlaps: n("epg.channels_with_overlaps") ?? 0,
+        }
+      : null,
     issues,
     becameCritical: becameCritical.sort(),
     recovered: recovered.sort(),

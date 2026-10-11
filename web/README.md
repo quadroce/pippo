@@ -126,3 +126,7 @@ A run created with `jobId` closes its job as `done` when it finishes (or is crea
 **Channel detail** (`/channels/[id]`, linked from the Channels list and Alerts): latest result with every metric, the thresholds in force and failed checks highlighted; screenshots (10/30/60 s and on failure); download of the raw event buffer; 90-day history charts (TTFF, stall ratio, black/frozen/silent time) with a status strip (letters as well as colors) and a table of past results; **Run test on this channel** queues a 60 s job.
 
 **Private evidence**: screenshots and raw buffers live in private Blob storage and are only served through `/api/screenshots/[id]` and `/api/raw/[id]`, which require a signed-in user and stream the bytes (short private cache, the Blob URL is never sent to the browser).
+
+## EPG data results (step 3.1)
+
+`POST /api/agent/runs/:id/epg` stores the run-level EPG result (`EpgResult`: metrics, issues and the check results; migration `20261013000000_epg_checks`). The server adds `epg.channel_count_drop` (channels now versus the previous completed run of the same country, critical above 10 % when the previous run had at least 10 channels; the share is editable in Settings). The daily report gains an EPG block (channels with data, shortest coverage ahead, channels without a current programme, with gaps, with overlaps) and failed EPG checks appear among its top issues. The settings catalog lists the EPG checks; for the coverage check lower is worse and the form validates the order of the two values accordingly. The EPG page itself is step 3.3.

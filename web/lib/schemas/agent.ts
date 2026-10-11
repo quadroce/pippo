@@ -100,6 +100,23 @@ export const imagesResultRequest = z.object({
 });
 export type ImagesResultRequest = z.infer<typeof imagesResultRequest>;
 
+export const epgResultRequest = z.object({
+  metrics: z.record(z.string(), z.unknown()),
+  checks: z.array(checkInput).max(200),
+  issues: z
+    .array(
+      z.object({
+        channel: z.string().max(200),
+        type: z.string().max(40),
+        from: z.number().nullable().optional(),
+        to: z.number().nullable().optional(),
+        detail: z.string().max(500).nullable().optional(),
+      }),
+    )
+    .max(500),
+});
+export type EpgResultRequest = z.infer<typeof epgResultRequest>;
+
 export const finishRunRequest = z.object({
   status: z.enum(["completed", "failed"]).default("completed"),
   log: z.array(z.object({ level: z.string(), msg: z.string().max(500) })).max(200).optional(),

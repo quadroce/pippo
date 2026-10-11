@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import json
 import logging
+import time
 from dataclasses import dataclass
 from datetime import datetime
 from pathlib import Path
@@ -14,6 +15,7 @@ from playwright.sync_api import sync_playwright
 from pippo import __version__
 from pippo.browser import open_context
 from pippo.config import AGENT_DIR
+from pippo.epg_fetch import capture_template, fallback_template, fetch_listings
 from pippo.guide import GuideCapture, GuideChannel
 from pippo.probes.images import (
     NetworkImages,
@@ -23,6 +25,7 @@ from pippo.probes.images import (
     fetch_hashes,
     load_placeholder_hashes,
 )
+from pippo.probes.epg import compute_epg, parse_listings
 from pippo.probes.logos import channel_logo_checks
 from pippo.profile import Profile
 from pippo.thresholds import Threshold
@@ -38,6 +41,7 @@ class Measurement:
     channels: list[GuideChannel]
     channel_results: dict[str, dict]   # slug -> {metrics, checks}
     guide_total: int | None
+    epg: dict | None = None            # run-level EPG result {metrics, checks, issues}
 
 
 def measure(
@@ -57,6 +61,7 @@ def measure(
         raise SystemExit(f"pluto_profile.yaml is for {profile.country}, not {country}")
 
     pages: list[PageImages] = []
+    epg_fetch = None
     ua = f"PippoAgent/{__version__}"
     guide = GuideCapture(route=profile.data["routes"]["guide"].split("?")[0])
     with sync_playwright() as p:
@@ -70,6 +75,8 @@ def measure(
                 url = profile.page_url(key)
                 log.info("crawling %s: %s", name, url)
                 pages.append(crawl_page(page, net, name, url, progress=log.info))
+                if name == "epg" and not guide_only:
+                    epg_fetch = _fetch_epg(page, profile, guide)
         finally:
             ctx.close()
 
@@ -96,7 +103,35 @@ def measure(
         log.warning("guide lists %d channels but only %d were captured while scrolling", guide.total, len(channels))
     epg = next((pg for pg in pages if pg.name == "epg"), None)
     logo = channel_logo_checks(channels, epg.items if epg else [], overrides)
-    return Measurement(report, channels, logo, guide.total)
+    epg_result = None
+    if epg_fetch is not None:
+        parsed = {slug: parse_listings(raw) for slug, raw in epg_fetch.listings.items()}
+        res = compute_epg(
+            parsed,
+            names={c.slug: c.name for c in channels},
+            now_ms=int(time.time() * 1000),
+            expected_language=profile.data.get("language"),
+            api_error=epg_fetch.error,
+            guide_total=guide.total,
+            overrides=overrides,
+        )
+        epg_result = {"metrics": res["metrics"], "checks": res["checks"], "issues": res["issues"]}
+        for slug, extra in res["channel_results"].items():
+            mine = logo.setdefault(slug, {"metrics": {}, "checks": []})
+            mine["metrics"].update(extra["metrics"])
+            mine["checks"] += extra["checks"]
+    return Measurement(report, channels, logo, guide.total, epg_result)
+
+
+def _fetch_epg(page, profile: Profile, guide: GuideCapture):
+    """Programme listings of every channel the guide showed. Returns None when no request template exists."""
+    template = capture_template(page) or fallback_template(profile)
+    if not template:
+        log.warning("no Listing request template: EPG data checks skipped")
+        return None
+    channels = sorted(guide.channels.values(), key=lambda c: c.name.lower())
+    log.info("fetching programme listings for %d channels", len(channels))
+    return fetch_listings(page, template, channels)
 
 
 def run_images(country: str, headless: bool, out_dir: Path | None = None, profile: Profile | None = None) -> tuple[dict, Path]:

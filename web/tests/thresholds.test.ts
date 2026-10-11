@@ -54,3 +54,19 @@ describe("parseEmails", () => {
     expect(!r.ok && r.error).toContain("nope");
   });
 });
+
+describe("lower-is-worse checks", () => {
+  it("catalogs the EPG checks and flags coverage as lower-is-worse", () => {
+    const cov = CHECK_CATALOG.find((c) => c.id === "epg.coverage_hours");
+    expect(cov?.lowerIsWorse).toBe(true);
+    expect(cov?.defaults).toEqual({ warn: 6, critical: 2 });
+    expect(CHECK_CATALOG.some((c) => c.id === "epg.no_now_program")).toBe(true);
+  });
+  it("validates the order the other way round", () => {
+    expect(parseThresholdInput("hours", "6", "2", true).ok).toBe(true);
+    const bad = parseThresholdInput("hours", "2", "6", true);
+    expect(bad.ok).toBe(false);
+    expect(!bad.ok && bad.error).toContain("lower is worse");
+    expect(parseThresholdInput("hours", "2", "6").ok).toBe(true);
+  });
+});

@@ -6,3 +6,4 @@ pillow>=10.0
 imagehash>=4.3
 python-dotenv>=1.0
 tzdata>=2024.1
+langdetect>=1.0.9

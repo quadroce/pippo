@@ -157,3 +157,13 @@ Live test with 2 workers: four 25 s recordings finished in 53 s, and an invalid 
 - A job runs the requested channels (ids `<cc>-<slug>` are mapped to guide slugs) or the whole country, with the requested window. Without "include images" the agent only loads the guide to learn the channels (about 20 s) instead of crawling home and guide. Requested channels missing from the guide are reported as `error` results instead of being dropped.
 - The run is created with the job id and trigger `on_demand` (no daily report). A country mismatch stores a blocked run and closes the job.
 - If the daily run fires while a job is running, it **waits** for it (up to 2 hours) instead of being skipped.
+
+## EPG data checks (Phase 3, step 3.1)
+
+The images measurement (`pippo run`, `pippo images` without `--no-...`) now also checks the guide's programme data. `pippo/epg_fetch.py` captures a real `Listing` request while the guide page loads (a channel row is scrolled into the future to trigger it; the hash in the profile is only a fallback) and then asks for each channel's listings 50 at a time from inside the browser until 12 hours ahead are covered. The first page of a channel starts at the programme that began hours ago, so the list holds past, current and upcoming programmes. A full Italian guide (127 channels) takes about 3 minutes. Guide-only measurements (on-demand tests without images) skip it.
+
+Checks (`pippo/probes/epg.py`, thresholds editable in Settings): per channel `epg.no_now_program` (critical), `epg.gap` and `epg.overlap` (more than 60 s, warning); per run `epg.api_failed` (critical, any failed guide request or an empty guide), `epg.coverage_hours` (shortest coverage ahead; **lower is worse**, warning below 6 h, critical below 2 h), `epg.missing_metadata` (no title, description or image, or a placeholder title, above 2 % of programmes) and `epg.language_mismatch` (description language detected with `langdetect` against `language` in `pluto_profile.yaml`, above 20 %, only evaluated with at least 20 descriptions). The per-channel checks become part of the channel's own result and alert like any other critical check; the run-level result is uploaded to `POST /api/agent/runs/:id/epg`.
+
+Not implemented, on purpose:
+- `epg.timezone_offset`: Pluto's programme boundaries are not aligned to :00/:30 (for example 16:25:18), so the catalog's method cannot be evaluated; the timezone is verified with the now-marker comparison of the rendering checks (step 3.2).
+- `epg.channel_count_drop` is evaluated by the web app against the previous run when the EPG result arrives.

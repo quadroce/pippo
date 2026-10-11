@@ -139,6 +139,7 @@ model EpgResult {
   runId   String @unique
   metrics Json
   issues  Json
+  checks  Json? // check results of the run-level EPG checks
 
   run Run @relation(fields: [runId], references: [id], onDelete: Cascade)
 }

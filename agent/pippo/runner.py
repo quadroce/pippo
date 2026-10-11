@@ -142,6 +142,8 @@ def execute_run(
     try:
         if m.report["pages"]:  # empty for guide-only measurements
             api.upload_images(run_id, {"pages": m.report["pages"], "checks": m.report["checks"]})
+        if m.epg:
+            api.upload_epg(run_id, m.epg)
         if measure_players is None:
             for ch in m.channels:
                 upload_channel(ChannelOutcome(ch))

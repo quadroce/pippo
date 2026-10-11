@@ -46,6 +46,7 @@ export function formatValue(checkId: string, v: number | null): string {
   if (unit === "ratio") return `${Math.round(v * 1000) / 10}%`;
   if (unit === "ms") return `${Math.round(v)} ms`;
   if (unit === "seconds") return `${Math.round(v * 10) / 10} s`;
+  if (unit === "hours") return `${Math.round(v * 10) / 10} h`;
   return String(Math.round(v * 1000) / 1000);
 }
 

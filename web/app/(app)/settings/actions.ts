@@ -14,7 +14,7 @@ export async function saveThreshold(_prev: FormState, formData: FormData): Promi
   const def = CHECK_CATALOG.find((c) => c.id === id);
   if (!def) return { ok: false, message: "Unknown check" };
 
-  const parsed = parseThresholdInput(def.unit, String(formData.get("warn") ?? ""), String(formData.get("critical") ?? ""));
+  const parsed = parseThresholdInput(def.unit, String(formData.get("warn") ?? ""), String(formData.get("critical") ?? ""), def.lowerIsWorse);
   if (!parsed.ok) return { ok: false, message: parsed.error };
 
   const stored = await getStoredThresholds();
