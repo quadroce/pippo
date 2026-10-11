@@ -16,6 +16,7 @@ const base: ReportInput = {
   finishedAt: new Date("2026-10-09T05:10:00Z"),
   counts: { ok: 120, warning: 5, critical: 2, error: 0 },
   images: [{ page: "home", total: 100, broken: 6, placeholder: 0 }],
+  epg: { channels: 127, coverageHours: 4.5, noNow: 1, withGaps: 2, withOverlaps: 0 },
   issues: [issue("warning", "Zeta"), issue("critical", "home"), issue("warning", "Alpha"), issue("critical", "Beta")],
   becameCritical: ["Beta"],
   recovered: ["Gamma"],
@@ -51,6 +52,8 @@ describe("daily report", () => {
       expect(body).toContain("home: 100 images, broken 6.0%");
       expect(body).toContain("Became critical: Beta");
       expect(body).toContain("Recovered: Gamma");
+      expect(body).toContain("127 channels with data, shortest coverage ahead 4.5 h");
+      expect(body).toContain("1 without a current programme, 2 with gaps");
       expect(body).toContain("https://pippo.example/runs/abc");
     }
   });

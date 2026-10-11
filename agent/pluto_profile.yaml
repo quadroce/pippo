@@ -3,6 +3,7 @@
 # the DOM dump but not yet exercised by a probe; confirm them when the probe that uses them is built.
 # Pluto TV can change any of this without notice: re-run discovery and update this file.
 country: IT
+language: it                  # expected language of titles and descriptions (EPG language check)
 entry_url: "https://pluto.tv/it/"
 
 pages:
@@ -17,6 +18,11 @@ routes:
   # Response: data.channels.{total, start, channels[]}. Each channel has: id, channelName, href,
   # filePathLogo, currentListing/upcoming listings, channelCategorySlugs, displayOrder.
   # IT run: total = 127 channels.
+  # Per-channel programme listings, 50 at a time: variables {channelSlug, params:{rows, start, ...}}.
+  # The persisted-query hash can change with a Pluto release; the agent captures a live request first
+  # and only falls back to this value.
+  listing: "/api/tn/video/graphql/?operationName=Listing"
+  listing_hash: "1ad2de822928575edd5800a61a9e51f6253e70e9130b0610cd07687a6a231c59"
   guide_one: "/api/tn/video/graphql/?operationName=ChannelsOne"
   regional_config: "operationName=RegionalConfiguration"
   playout_session: "/api/tn/video/playout/v3/session.json"

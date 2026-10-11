@@ -34,13 +34,30 @@ DEFAULTS: dict[str, Threshold] = {
     "player.media_error": Threshold(critical=0),     # any
     "player.segment_errors": Threshold(warn=0, critical=4),  # catalog: warning at 1+, critical at 5+
     "player.rendition_switches": Threshold(warn=6),
+    # EPG data (section C.1). Coverage is graded the other way round: lower is worse.
+    "epg.api_failed": Threshold(critical=0),
+    "epg.coverage_hours": Threshold(warn=6, critical=2),
+    "epg.gap": Threshold(warn=0),
+    "epg.overlap": Threshold(warn=0),
+    "epg.no_now_program": Threshold(critical=0),
+    "epg.missing_metadata": Threshold(warn=0.02),
+    "epg.language_mismatch": Threshold(warn=0.20),
 }
+
+# Checks where a value BELOW the threshold is the failure (hours of programming left, for example).
+LOWER_IS_WORSE = {"epg.coverage_hours"}
 
 
 def grade(check_id: str, value: float, overrides: dict[str, Threshold] | None = None) -> tuple[str, float | None]:
     """Return (severity, threshold_crossed). Severity is "ok", "warning" or "critical"."""
     t = (overrides or {}).get(check_id) or DEFAULTS.get(check_id)
     if t is None:
+        return "ok", None
+    if check_id in LOWER_IS_WORSE:
+        if t.critical is not None and value < t.critical:
+            return "critical", t.critical
+        if t.warn is not None and value < t.warn:
+            return "warning", t.warn
         return "ok", None
     if t.critical is not None and value > t.critical:
         return "critical", t.critical

@@ -7,7 +7,7 @@
  * ratios as percentages.
  */
 
-export type Unit = "ratio" | "seconds" | "ms" | "count";
+export type Unit = "ratio" | "seconds" | "ms" | "hours" | "count";
 
 export type CheckDef = {
   id: string;
@@ -15,6 +15,8 @@ export type CheckDef = {
   unit: Unit;
   description: string;
   defaults: { warn: number | null; critical: number | null };
+  /** True when a value BELOW the threshold is the failure (hours of programming left). */
+  lowerIsWorse?: boolean;
 };
 
 export const CHECK_CATALOG: CheckDef[] = [
@@ -130,6 +132,63 @@ export const CHECK_CATALOG: CheckDef[] = [
     description: "Quality level changes during the window.",
     defaults: { warn: 6, critical: null },
   },
+  {
+    id: "epg.api_failed",
+    name: "Guide API failed",
+    unit: "count",
+    description: "A guide request failed, timed out or returned no channels. Any occurrence is critical.",
+    defaults: { warn: null, critical: 0 },
+  },
+  {
+    id: "epg.channel_count_drop",
+    name: "Channel count drop",
+    unit: "ratio",
+    description: "Fewer channels than in the previous run. Evaluated by the server when the EPG result arrives.",
+    defaults: { warn: null, critical: 0.1 },
+  },
+  {
+    id: "epg.coverage_hours",
+    name: "EPG coverage ahead",
+    unit: "hours",
+    description: "Hours of programming left ahead of now, for the channel with the least. Lower is worse: warn and critical fire BELOW these values.",
+    defaults: { warn: 6, critical: 2 },
+    lowerIsWorse: true,
+  },
+  {
+    id: "epg.gap",
+    name: "Schedule gaps",
+    unit: "count",
+    description: "Gaps longer than 60 s between consecutive programmes, evaluated per channel.",
+    defaults: { warn: 0, critical: null },
+  },
+  {
+    id: "epg.overlap",
+    name: "Schedule overlaps",
+    unit: "count",
+    description: "Programmes starting more than 60 s before the previous one ends, evaluated per channel.",
+    defaults: { warn: 0, critical: null },
+  },
+  {
+    id: "epg.no_now_program",
+    name: "No programme now",
+    unit: "count",
+    description: "A channel has no programme covering the current time. Any occurrence is critical.",
+    defaults: { warn: null, critical: 0 },
+  },
+  {
+    id: "epg.missing_metadata",
+    name: "Missing programme metadata",
+    unit: "ratio",
+    description: "Programmes without title, description or image, or with a placeholder title, divided by all programmes.",
+    defaults: { warn: 0.02, critical: null },
+  },
+  {
+    id: "epg.language_mismatch",
+    name: "Language mismatch",
+    unit: "ratio",
+    description: "Share of descriptions in a language other than the country's. Foreign-language shows count, so tune this per country.",
+    defaults: { warn: 0.2, critical: null },
+  },
 ];
 
 export type StoredThresholds = Record<string, { warn: number | null; critical: number | null }>;
@@ -155,7 +214,7 @@ const round = (n: number) => Math.round(n * 1000) / 1000;
 export type ParsedInput = { ok: true; value: { warn: number | null; critical: number | null } } | { ok: false; error: string };
 
 /** Parses the two form fields of one check ("" = disabled). Ratios arrive as percentages (0-100). */
-export function parseThresholdInput(unit: Unit, warnRaw: string, criticalRaw: string): ParsedInput {
+export function parseThresholdInput(unit: Unit, warnRaw: string, criticalRaw: string, lowerIsWorse = false): ParsedInput {
   const one = (raw: string): number | null | "bad" => {
     const s = raw.trim().replace(",", ".");
     if (s === "") return null;
@@ -169,8 +228,13 @@ export function parseThresholdInput(unit: Unit, warnRaw: string, criticalRaw: st
   if (warn === "bad" || critical === "bad") {
     return { ok: false, error: unit === "ratio" ? "Enter a percentage between 0 and 100 (or leave empty)" : "Enter a number of 0 or more (or leave empty)" };
   }
-  if (warn !== null && critical !== null && critical < warn) {
-    return { ok: false, error: "The critical threshold must not be lower than the warning threshold" };
+  if (warn !== null && critical !== null) {
+    if (lowerIsWorse && critical > warn) {
+      return { ok: false, error: "For this check lower is worse: the critical value must not be higher than the warning value" };
+    }
+    if (!lowerIsWorse && critical < warn) {
+      return { ok: false, error: "The critical threshold must not be lower than the warning threshold" };
+    }
   }
   return { ok: true, value: { warn, critical } };
 }

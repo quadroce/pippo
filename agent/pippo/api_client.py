@@ -84,6 +84,9 @@ class ApiClient:
     def upload_images(self, run_id: str, payload: dict) -> dict:
         return self.request("POST", f"/api/agent/runs/{run_id}/images", json=payload).json()
 
+    def upload_epg(self, run_id: str, payload: dict) -> dict:
+        return self.request("POST", f"/api/agent/runs/{run_id}/epg", json=payload).json()
+
     def finish_run(self, run_id: str, payload: dict | None = None) -> dict:
         return self.request("POST", f"/api/agent/runs/{run_id}/finish", json=payload or {}).json()
 

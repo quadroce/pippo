@@ -1,0 +1,1 @@
+ALTER TABLE "EpgResult" ADD COLUMN "checks" JSONB;

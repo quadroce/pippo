@@ -19,6 +19,7 @@ export type ReportInput = {
   finishedAt: Date | null;
   counts: { ok: number; warning: number; critical: number; error: number };
   images: { page: string; total: number; broken: number; placeholder: number }[];
+  epg: { channels: number | null; coverageHours: number | null; noNow: number; withGaps: number; withOverlaps: number } | null;
   issues: Issue[]; // every failed critical/warning check, unsorted
   becameCritical: string[]; // channel names, vs the previous completed run
   recovered: string[];
@@ -32,6 +33,14 @@ const esc = (s: string) =>
 
 const pct = (v: number) => `${(v * 100).toFixed(1)}%`;
 const fmt = (v: number | null) => (v === null ? "n/a" : Number.isInteger(v) ? String(v) : v.toFixed(3));
+
+function epgLines(e: ReportInput["epg"]): string[] {
+  if (!e) return ["no EPG result for this run"];
+  return [
+    `${e.channels ?? "?"} channels with data, shortest coverage ahead ${e.coverageHours === null ? "n/a" : `${e.coverageHours.toFixed(1)} h`}`,
+    `${e.noNow} without a current programme, ${e.withGaps} with gaps, ${e.withOverlaps} with overlaps`,
+  ];
+}
 
 export function rankIssues(issues: Issue[]): Issue[] {
   const weight = { critical: 0, warning: 1 };
@@ -64,6 +73,9 @@ export function buildReport(r: ReportInput): { subject: string; html: string; te
     "Images",
     ...(r.images.length ? r.images.map((m) => `  ${imageLine(m)}`) : ["  no images result for this run"]),
     "",
+    "EPG",
+    ...epgLines(r.epg).map((l) => `  ${l}`),
+    "",
     `Top issues (${top.length} of ${r.issues.length})`,
     ...(top.length ? top.map((i) => `  ${issueLine(i)}`) : ["  none"]),
     "",
@@ -81,6 +93,8 @@ export function buildReport(r: ReportInput): { subject: string; html: string; te
 <p><strong>Channels (${total}):</strong> ${r.counts.ok} ok, ${r.counts.warning} warning, ${r.counts.critical} critical, ${r.counts.error} error</p>
 <h3>Images</h3>
 <ul>${r.images.length ? r.images.map((m) => li(imageLine(m))).join("") : li("no images result for this run")}</ul>
+<h3>EPG</h3>
+<ul>${epgLines(r.epg).map(li).join("")}</ul>
 <h3>Top issues (${top.length} of ${r.issues.length})</h3>
 <ul>${top.length ? top.map((i) => li(issueLine(i))).join("") : li("none")}</ul>
 <h3>Changes vs previous run</h3>
