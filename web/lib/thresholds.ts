@@ -189,6 +189,41 @@ export const CHECK_CATALOG: CheckDef[] = [
     description: "Share of descriptions in a language other than the country's. Foreign-language shows count, so tune this per country.",
     defaults: { warn: 0.2, critical: null },
   },
+  {
+    id: "epg.render_channel_count",
+    name: "Rendered channels differ from the API",
+    unit: "count",
+    description: "Channels in the API but missing from the rendered guide, plus channels rendered but not in the API. Any difference is critical.",
+    defaults: { warn: null, critical: 0 },
+  },
+  {
+    id: "epg.highlight_mismatch",
+    name: "Highlighted programme differs from the API",
+    unit: "count",
+    description: "The guide marks one programme as on air, the API says another. Evaluated per channel, with a 2 minute tolerance at programme boundaries.",
+    defaults: { warn: 0, critical: null },
+  },
+  {
+    id: "epg.empty_cells",
+    name: "Empty programme tiles",
+    unit: "ratio",
+    description: "Tiles of the guide with no text or no image after loading, divided by all tiles.",
+    defaults: { warn: 0.01, critical: null },
+  },
+  {
+    id: "epg.scroll_load_time",
+    name: "Guide scroll load time",
+    unit: "seconds",
+    description: "Longest wait for newly revealed channel rows to fill in after a scroll.",
+    defaults: { warn: 5, critical: null },
+  },
+  {
+    id: "player.now_playing_mismatch",
+    name: "Player title differs from the EPG",
+    unit: "count",
+    description: "The title shown on the channel page differs from the programme the EPG says is on air.",
+    defaults: { warn: 0, critical: null },
+  },
 ];
 
 export type StoredThresholds = Record<string, { warn: number | null; critical: number | null }>;

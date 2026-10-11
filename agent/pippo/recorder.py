@@ -22,6 +22,12 @@ from playwright.sync_api import Page, Request, Response
 log = logging.getLogger(__name__)
 
 SEGMENT_RE = re.compile(r"\.(ts|m4s|mp4|aac|m4a|vtt|webvtt|cmfv|cmfa)(\?|$)", re.I)
+CHANNEL_TITLE_JS = """
+() => {
+  const h = document.querySelector("[data-testid='channel-details'] h1") || document.querySelector('h1');
+  return h ? (h.innerText || '').trim() : null;
+}
+"""
 PLAYLIST_RE = re.compile(r"\.(m3u8|mpd)(\?|$)", re.I)
 
 INIT_SCRIPT = r"""
@@ -184,8 +190,16 @@ def record_channel(page: Page, url: str, window_sec: int = 60, shots_dir: Path |
 
     buffer = page.evaluate("window.__pippo || null") if not nav_error else None
     final_url = urlparse(page.url).path  # path only: query strings may carry tokens
+    ui_title, ui_title_at = None, None
+    if not nav_error:
+        try:
+            ui_title, ui_title_at = page.evaluate(CHANNEL_TITLE_JS), round(time.time() * 1000)
+        except Exception as e:
+            log.debug("could not read the channel title: %s", e)
     return {
         "finalPath": final_url,
+        "uiTitle": ui_title,
+        "uiTitleAt": ui_title_at,
         "windowSec": window_sec,
         "navError": nav_error,
         "buffer": buffer or {"events": [], "frames": [], "audio": [], "info": {}},

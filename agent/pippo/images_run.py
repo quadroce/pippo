@@ -26,6 +26,7 @@ from pippo.probes.images import (
     load_placeholder_hashes,
 )
 from pippo.probes.epg import compute_epg, parse_listings
+from pippo.probes.epg_render import RowCollector, compute_render
 from pippo.probes.logos import channel_logo_checks
 from pippo.profile import Profile
 from pippo.thresholds import Threshold
@@ -42,6 +43,7 @@ class Measurement:
     channel_results: dict[str, dict]   # slug -> {metrics, checks}
     guide_total: int | None
     epg: dict | None = None            # run-level EPG result {metrics, checks, issues}
+    listings: dict | None = None       # slug -> parsed programme listings (for the player cross-check)
 
 
 def measure(
@@ -62,6 +64,7 @@ def measure(
 
     pages: list[PageImages] = []
     epg_fetch = None
+    rows = RowCollector()
     ua = f"PippoAgent/{__version__}"
     guide = GuideCapture(route=profile.data["routes"]["guide"].split("?")[0])
     with sync_playwright() as p:
@@ -74,7 +77,9 @@ def measure(
             for name, key in (PAGES[1:] if guide_only else PAGES):
                 url = profile.page_url(key)
                 log.info("crawling %s: %s", name, url)
-                pages.append(crawl_page(page, net, name, url, progress=log.info))
+                pages.append(
+                    crawl_page(page, net, name, url, progress=log.info, on_step=rows.step if name == "epg" else None)
+                )
                 if name == "epg" and not guide_only:
                     epg_fetch = _fetch_epg(page, profile, guide)
         finally:
@@ -104,6 +109,7 @@ def measure(
     epg = next((pg for pg in pages if pg.name == "epg"), None)
     logo = channel_logo_checks(channels, epg.items if epg else [], overrides)
     epg_result = None
+    listings = None
     if epg_fetch is not None:
         parsed = {slug: parse_listings(raw) for slug, raw in epg_fetch.listings.items()}
         res = compute_epg(
@@ -115,12 +121,22 @@ def measure(
             guide_total=guide.total,
             overrides=overrides,
         )
-        epg_result = {"metrics": res["metrics"], "checks": res["checks"], "issues": res["issues"]}
-        for slug, extra in res["channel_results"].items():
+        render = compute_render(rows.rows, channels, parsed, rows.load_max_sec, overrides)
+        epg_result = {
+            "metrics": {**res["metrics"], **render["metrics"]},
+            "checks": res["checks"] + render["checks"],
+            "issues": (res["issues"] + render["issues"])[:300],
+        }
+        listings = parsed
+        for slug, extra in {**res["channel_results"]}.items():
             mine = logo.setdefault(slug, {"metrics": {}, "checks": []})
             mine["metrics"].update(extra["metrics"])
             mine["checks"] += extra["checks"]
-    return Measurement(report, channels, logo, guide.total, epg_result)
+        for slug, extra in render["channel_checks"].items():
+            mine = logo.setdefault(slug, {"metrics": {}, "checks": []})
+            mine["metrics"].update(extra["metrics"])
+            mine["checks"] += extra["checks"]
+    return Measurement(report, channels, logo, guide.total, epg_result, listings)
 
 
 def _fetch_epg(page, profile: Profile, guide: GuideCapture):
