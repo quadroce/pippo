@@ -106,7 +106,8 @@ def language_mismatch_ratio(
 ) -> tuple[float | None, int]:
     """Share of texts detected in another language than `expected`, and how many were evaluated."""
     expected = expected.lower()[:2]
-    results = [detector(t) for t in texts[:LANGUAGE_SAMPLE]]
+    step = max(1, len(texts) // LANGUAGE_SAMPLE)  # spread the sample over all channels, not just the first ones
+    results = [detector(t) for t in texts[::step][:LANGUAGE_SAMPLE]]
     known = [r for r in results if r]
     if not known:
         return None, 0
