@@ -209,3 +209,49 @@ def test_runner_uploads_epg_before_the_channels(tmp_path):
     api = ApiClient(S, transport=httpx.MockTransport(handler), sleep=lambda s: None)
     execute_run(api, S, "IT", lambda: m, detect=lambda s: "IT", reports_dir=tmp_path)
     assert calls == ["/api/agent/runs", "/api/agent/runs/run-1/images", "/api/agent/runs/run-1/epg", "/api/agent/runs/run-1/channels", "/api/agent/runs/run-1/finish"]
+
+
+def test_runner_uploads_the_guide_screenshot_and_links_it_in_the_epg_result(tmp_path):
+    S = Settings(api_base_url="https://x.test", agent_api_key="k", http_retries=0)
+    shot = tmp_path / "guide.png"
+    shot.write_bytes(b"PNG-data")
+    seen = {}
+
+    def handler(req: httpx.Request):
+        if req.url.path == "/api/agent/runs":
+            return httpx.Response(201, json={"id": "run-1", "status": "running"})
+        if req.url.path == "/api/agent/upload":
+            seen["upload"] = dict(req.url.params)
+            return httpx.Response(201, json={"url": "https://blob/epg-guide.png", "pathname": "p"})
+        if req.url.path.endswith("/epg"):
+            seen["epg"] = json.loads(req.content)
+        if req.url.path.endswith("/finish"):
+            return httpx.Response(200, json={"counts": {}})
+        return httpx.Response(201, json={"ok": True})
+
+    m = Measurement({"pages": {}, "checks": []}, [], {}, 0, epg={"metrics": {}, "checks": [], "issues": []}, epg_screenshot=shot)
+    api = ApiClient(S, transport=httpx.MockTransport(handler), sleep=lambda s: None)
+    execute_run(api, S, "IT", lambda: m, detect=lambda s: "IT", reports_dir=tmp_path)
+    assert seen["upload"] == {"runId": "run-1", "kind": "screenshot", "name": "epg-guide.png"}
+    assert seen["epg"]["screenshotUrl"] == "https://blob/epg-guide.png"
+
+
+def test_a_missing_screenshot_never_blocks_the_epg_upload(tmp_path):
+    S = Settings(api_base_url="https://x.test", agent_api_key="k", http_retries=0)
+    seen = {}
+
+    def handler(req: httpx.Request):
+        if req.url.path == "/api/agent/runs":
+            return httpx.Response(201, json={"id": "run-1", "status": "running"})
+        if req.url.path.endswith("/epg"):
+            seen["epg"] = json.loads(req.content)
+        if req.url.path.endswith("/finish"):
+            return httpx.Response(200, json={"counts": {}})
+        return httpx.Response(201, json={"ok": True})
+
+    gone = tmp_path / "does-not-exist.png"
+    m = Measurement({"pages": {}, "checks": []}, [], {}, 0, epg={"metrics": {}, "checks": [], "issues": []}, epg_screenshot=gone)
+    api = ApiClient(S, transport=httpx.MockTransport(handler), sleep=lambda s: None)
+    execute_run(api, S, "IT", lambda: m, detect=lambda s: "IT", reports_dir=tmp_path)
+    assert "screenshotUrl" not in seen["epg"]
+

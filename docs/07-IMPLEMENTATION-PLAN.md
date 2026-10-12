@@ -67,7 +67,7 @@ Status: ⬜ todo · 🟨 in progress · ✅ done
 |---|------|--------|
 | 3.1 | Guide API interception; `epg.*` data checks | 🟨 data checks done and run live; no timezone check (see agent README); EPG page is 3.3 |
 | 3.2 | Rendering checks; `player.now_playing_mismatch` | 🟨 done and run live; no now-marker or timezone check (the guide has no time axis) |
-| 3.3 | EPG page | ⬜ |
+| 3.3 | EPG page | 🟨 page, CSV export and screenshot done; not opened in a browser or run against a database |
 
 ### Phase 4 — Subtitles (M4)
 

@@ -38,8 +38,8 @@ export async function POST(req: Request, ctx: { params: Promise<{ id: string }> 
 
   await prisma.epgResult.upsert({
     where: { runId: run.id },
-    update: { metrics: epg.metrics as object, issues: epg.issues as object, checks: checks as object },
-    create: { runId: run.id, metrics: epg.metrics as object, issues: epg.issues as object, checks: checks as object },
+    update: { metrics: epg.metrics as object, issues: epg.issues as object, checks: checks as object, screenshotUrl: epg.screenshotUrl ?? null },
+    create: { runId: run.id, metrics: epg.metrics as object, issues: epg.issues as object, checks: checks as object, screenshotUrl: epg.screenshotUrl ?? null },
   });
   return NextResponse.json({ ok: true, checks: checks.length }, { status: 201 });
 }

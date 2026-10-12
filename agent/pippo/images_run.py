@@ -44,6 +44,7 @@ class Measurement:
     guide_total: int | None
     epg: dict | None = None            # run-level EPG result {metrics, checks, issues}
     listings: dict | None = None       # slug -> parsed programme listings (for the player cross-check)
+    epg_screenshot: Path | None = None  # picture of the guide as rendered, for the dashboard
 
 
 def measure(
@@ -64,6 +65,7 @@ def measure(
 
     pages: list[PageImages] = []
     epg_fetch = None
+    epg_shot: Path | None = None
     rows = RowCollector()
     ua = f"PippoAgent/{__version__}"
     guide = GuideCapture(route=profile.data["routes"]["guide"].split("?")[0])
@@ -81,6 +83,7 @@ def measure(
                     crawl_page(page, net, name, url, progress=log.info, on_step=rows.step if name == "epg" else None)
                 )
                 if name == "epg" and not guide_only:
+                    epg_shot = _screenshot_guide(page)
                     epg_fetch = _fetch_epg(page, profile, guide)
         finally:
             ctx.close()
@@ -136,7 +139,22 @@ def measure(
             mine = logo.setdefault(slug, {"metrics": {}, "checks": []})
             mine["metrics"].update(extra["metrics"])
             mine["checks"] += extra["checks"]
-    return Measurement(report, channels, logo, guide.total, epg_result, listings)
+    return Measurement(report, channels, logo, guide.total, epg_result, listings, epg_shot)
+
+
+def _screenshot_guide(page) -> Path | None:
+    """Viewport picture of the guide (top of the list). Failure to take it never fails the measurement."""
+    try:
+        directory = AGENT_DIR / "reports"
+        directory.mkdir(parents=True, exist_ok=True)
+        path = directory / f"epg-guide-{datetime.now().strftime('%Y%m%d-%H%M%S')}.png"
+        page.evaluate("window.scrollTo(0, 0)")
+        page.wait_for_timeout(500)
+        page.screenshot(path=str(path), timeout=30_000)
+        return path
+    except Exception as e:
+        log.warning("guide screenshot failed: %s", str(e).splitlines()[0])
+        return None
 
 
 def _fetch_epg(page, profile: Profile, guide: GuideCapture):

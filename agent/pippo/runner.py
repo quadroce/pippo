@@ -148,7 +148,15 @@ def execute_run(
         if m.report["pages"]:  # empty for guide-only measurements
             api.upload_images(run_id, {"pages": m.report["pages"], "checks": m.report["checks"]})
         if m.epg:
-            api.upload_epg(run_id, m.epg)
+            epg_payload = dict(m.epg)
+            if m.epg_screenshot:
+                try:
+                    data = m.epg_screenshot.read_bytes()
+                    if len(data) <= MAX_UPLOAD_BYTES:
+                        epg_payload["screenshotUrl"] = api.upload_file(run_id, "screenshot", "epg-guide.png", data, "image/png")["url"]
+                except (ApiError, OSError) as e:
+                    log.warning("guide screenshot upload failed: %s", e)
+            api.upload_epg(run_id, epg_payload)
         if measure_players is None:
             for ch in m.channels:
                 upload_channel(ChannelOutcome(ch))
