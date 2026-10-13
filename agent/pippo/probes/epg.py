@@ -101,6 +101,18 @@ def detect_language(text: str) -> str | None:
         return None
 
 
+def detect_language_confident(text: str, min_probability: float = 0.9) -> str | None:
+    """Language of the text only when the detector is sure; noisy text (roll-up captions, short fragments) gives None."""
+    try:
+        from langdetect import DetectorFactory, detect_langs
+
+        DetectorFactory.seed = 0
+        best = detect_langs(text)[0]
+        return best.lang if best.prob >= min_probability else None
+    except Exception:
+        return None
+
+
 def language_mismatch_ratio(
     texts: list[str], expected: str, detector=detect_language
 ) -> tuple[float | None, int]:

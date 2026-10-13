@@ -71,6 +71,16 @@ INIT_SCRIPT = r"""
       // Analyse through a muted gain so the robot never makes sound on the operator PC.
       const mute = ctx.createGain(); mute.gain.value = 0;
       src.connect(analyser); analyser.connect(mute); mute.connect(ctx.destination);
+      if (window.__pippoCapturePcm) {          // raw samples for the subtitle sync check (sample channels only)
+        const proc = ctx.createScriptProcessor(4096, 1, 1);
+        P.pcm = []; P.pcmRate = ctx.sampleRate; P.pcmStartCt = null;
+        proc.onaudioprocess = (e) => {
+          if (v.paused) return;
+          if (P.pcmStartCt === null) P.pcmStartCt = v.currentTime;
+          P.pcm.push(new Float32Array(e.inputBuffer.getChannelData(0)));
+        };
+        src.connect(proc); proc.connect(mute);
+      }
       buf = new Float32Array(analyser.fftSize);
       P.info.audioState = ctx.state;
       if (ctx.state === 'suspended') ctx.resume().catch(() => {});
@@ -117,6 +127,20 @@ INIT_SCRIPT = r"""
     if (window.__pippoSubSelector) { const e = document.querySelector(window.__pippoSubSelector); dom = e ? (e.innerText || '').trim() : ''; }
     P.subs.push({ t: now(), ct: v.currentTime, tracks, dom });
   }, 2000);
+  // Mono 16 kHz signed 16-bit PCM of everything captured, base64 (Whisper's input rate; no decoder needed in Python).
+  window.__pippoPcm16k = () => {
+    if (!P.pcm || !P.pcm.length) return null;
+    let n = 0; for (const b of P.pcm) n += b.length;
+    const all = new Float32Array(n); let o = 0; for (const b of P.pcm) { all.set(b, o); o += b.length; }
+    const ratio = P.pcmRate / 16000, m = Math.floor(n / ratio), out = new Int16Array(m);
+    for (let i = 0; i < m; i++) {
+      const x = i * ratio, i0 = Math.floor(x), f = x - i0, s = all[i0] * (1 - f) + (all[Math.min(i0 + 1, n - 1)] * f);
+      out[i] = Math.max(-1, Math.min(1, s)) * 32767;
+    }
+    const bytes = new Uint8Array(out.buffer); let bin = '';
+    for (let i = 0; i < bytes.length; i += 8192) bin += String.fromCharCode.apply(null, bytes.subarray(i, i + 8192));
+    return { b64: btoa(bin), rate: 16000, samples: m, startCt: P.pcmStartCt };
+  };
   window.__pippoSubCues = () => {
     const v = video(); const out = []; if (!v) return out;
     for (const t of v.textTracks) {
@@ -269,12 +293,15 @@ def record_channel(
     window_sec: int = 60,
     shots_dir: Path | None = None,
     subtitles: SubtitleConfig | None = None,
+    capture_audio: bool = False,
 ) -> dict:
     """Open a channel page and record `window_sec` seconds of playback. Returns the raw buffer."""
     page.add_init_script(INIT_SCRIPT)
     if subtitles and subtitles.text_selector:
         page.add_init_script(f"window.__pippoSubSelector = {json.dumps(subtitles.text_selector)};")
     sub_info: dict | None = None
+    if capture_audio:
+        page.add_init_script("window.__pippoCapturePcm = true;")
     t0 = time.time()
     net = NetworkLog(page, t0)
     nav_error = None
@@ -303,7 +330,14 @@ def record_channel(
                 shots.append(_shot(page, shots_dir, "failure", round(elapsed), "failure"))
 
     buffer = page.evaluate("window.__pippo || null") if not nav_error else None
+    pcm = None
+    if buffer is not None and capture_audio:
+        try:
+            pcm = page.evaluate("window.__pippoPcm16k ? window.__pippoPcm16k() : null")
+        except Exception as e:
+            log.debug("could not read the captured audio: %s", e)
     if buffer is not None:
+        buffer.pop("pcm", None)  # raw sample arrays stay in the page; never in the JSON buffer
         try:
             buffer["subCues"] = page.evaluate("window.__pippoSubCues ? window.__pippoSubCues() : []")
         except Exception as e:
@@ -318,6 +352,7 @@ def record_channel(
     return {
         "finalPath": final_url,
         "subtitleInfo": sub_info,
+        "pcm": pcm,
         "uiTitle": ui_title,
         "uiTitleAt": ui_title_at,
         "windowSec": window_sec,

@@ -41,10 +41,15 @@ export async function POST(req: Request) {
   const activeCode = typeof active?.value === "string" ? active.value : null;
   const country = activeCode ? await prisma.country.findUnique({ where: { code: activeCode } }) : null;
 
+  const sample = activeCode
+    ? await prisma.channel.findMany({ where: { countryCode: activeCode, subtitleSample: true }, select: { id: true }, orderBy: { id: "asc" } })
+    : [];
+
   const res: HeartbeatResponse = {
     activeCountry: activeCode,
     schedule: country ? { countryCode: country.code, runHour: country.runHour, timezone: country.timezone } : null,
     thresholds,
+    subtitleSample: sample.map((c) => c.id),
     pollIntervalSec: typeof poll?.value === "number" ? poll.value : DEFAULT_POLL_SEC,
   };
   return NextResponse.json(res);

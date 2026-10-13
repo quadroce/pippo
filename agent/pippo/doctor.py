@@ -49,6 +49,15 @@ def run_doctor(settings: Settings) -> list[Check]:
     except Exception as e:  # network, bad JSON, missing field
         checks.append(Check("geolocation", False, str(e)))
 
+    try:
+        from pippo.transcribe import whisper_available
+
+        usable, detail = whisper_available()
+    except Exception as e:
+        usable, detail = False, str(e).splitlines()[0]
+    # Optional: only the subtitle sync check needs it, so a missing package is information, not a failure.
+    checks.append(Check("whisper (optional)", True, detail if usable else f"not available, subtitle sync will be skipped ({detail})"))
+
     if problems:
         checks.append(Check("api", False, "skipped: fix config first"))
     else:

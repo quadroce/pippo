@@ -3,6 +3,7 @@ from __future__ import annotations
 import logging
 import platform
 import time
+from dataclasses import dataclass, field
 
 from pippo import __version__
 from pippo.api_client import ApiClient, ApiError
@@ -38,6 +39,25 @@ def heartbeat_once(settings: Settings, client: ApiClient) -> tuple[PrecheckResul
     return result, reply
 
 
+@dataclass
+class ServerConfig:
+    thresholds: dict[str, Threshold] = field(default_factory=dict)
+    subtitle_sample: list[str] = field(default_factory=list)   # channel ids ("<cc>-<slug>") flagged in Settings
+
+
+def server_config(settings: Settings, client: ApiClient) -> ServerConfig:
+    """Thresholds and subtitle sample set in the web app. Falls back to defaults and no sample if unreachable."""
+    try:
+        _, reply = heartbeat_once(settings, client)
+    except ApiError as e:
+        log.warning("could not fetch the server configuration (%s): using built-in defaults", e)
+        return ServerConfig()
+    sample = [s for s in (reply.get("subtitleSample") or []) if isinstance(s, str)]
+    found = parse_thresholds(reply)
+    log.info("using %d thresholds and a subtitle sample of %d channels from the web app", len(found), len(sample))
+    return ServerConfig(found, sample)
+
+
 def server_thresholds(settings: Settings, client: ApiClient) -> dict[str, Threshold]:
     """Global thresholds set in the web app's Settings. Falls back to the built-in defaults if unreachable."""
     try:
@@ -59,14 +79,17 @@ def _scheduled_run(settings: Settings, country: str) -> None:
 
     api = ApiClient(settings)
     try:
-        overrides = server_thresholds(settings, api)
+        cfg = server_config(settings, api)
+        overrides = cfg.thresholds
         out = execute_run(
             api,
             settings,
             country,
             lambda: measure(country, headless=True, overrides=overrides),
             trigger="scheduled",
-            measure_players=player_measure_for(settings, country, True, overrides),
+            measure_players=player_measure_for(
+                settings, country, True, overrides, sync_slugs=slugs_from_channel_ids(cfg.subtitle_sample, country)
+            ),
         )
         log.info("scheduled run %s completed: %s", out["runId"], out["counts"])
     except RunBlocked as e:
@@ -85,7 +108,9 @@ def run_job(settings: Settings, job: dict) -> None:
     only = slugs_from_channel_ids(job["channelIds"], country)
     api = ApiClient(settings)
     try:
-        overrides = server_thresholds(settings, api)
+        cfg = server_config(settings, api)
+        overrides = cfg.thresholds
+        sample = slugs_from_channel_ids(cfg.subtitle_sample, country)
         out = execute_run(
             api,
             settings,
@@ -93,7 +118,13 @@ def run_job(settings: Settings, job: dict) -> None:
             lambda: measure(country, headless=True, overrides=overrides, guide_only=not job["includeImages"]),
             trigger="on_demand",
             measure_players=player_measure_for(
-                settings, country, True, overrides, window_sec=job["windowSec"], only_slugs=only
+                settings,
+                country,
+                True,
+                overrides,
+                window_sec=job["windowSec"],
+                only_slugs=only,
+                sync_slugs=(sample & only) if (sample and only) else sample,
             ),
             job_id=job["id"],
         )
