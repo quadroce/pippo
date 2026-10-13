@@ -31,6 +31,10 @@ export default async function SettingsPage() {
           <Link href="/settings/users" className="underline">
             Manage users and invitations
           </Link>
+          {" · "}
+          <Link href="/settings/channels" className="underline">
+            Channel flags (reference, subtitle sample)
+          </Link>
         </p>
       </div>
 
