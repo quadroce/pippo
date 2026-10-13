@@ -75,7 +75,7 @@ Status: ⬜ todo · 🟨 in progress · ✅ done
 |---|------|--------|
 | 4.1 | Presence and rendering checks (`sub.*`) | 🟨 done and run live on 5 channels; rendering check verified against one real cue |
 | 4.2 | Audio capture, Whisper transcription, alignment, `sub.sync_offset` | 🟨 pipeline verified live on one roll-up channel; pop-on path only on synthetic data; sample UI is 4.3 |
-| 4.3 | Subtitle sample management in Settings | ⬜ |
+| 4.3 | Subtitle sample management in Settings | 🟨 page, action and channel shortcut done; not opened in a browser or run against a database |
 
 ### Phase 5 — Hardening (M5)
 

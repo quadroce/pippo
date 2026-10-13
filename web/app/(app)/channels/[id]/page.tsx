@@ -6,7 +6,9 @@ import { getGlobalThresholds } from "@/lib/settings";
 import { CHECK_CATALOG } from "@/lib/thresholds";
 import { subtitleState } from "@/lib/subtitles-view";
 import { StatusBadge } from "../../status-badge";
+import { requireUser } from "@/lib/session";
 import { runTestOnChannel } from "./actions";
+import { setChannelFlag } from "./flag-action";
 import { HistoryCharts, type Point } from "./history-charts";
 
 export const dynamic = "force-dynamic";
@@ -22,6 +24,7 @@ const LETTER: Record<string, string> = { ok: "O", warning: "W", critical: "C", e
 export default async function ChannelDetail({ params }: { params: Promise<{ id: string }> }) {
   const { id } = await params;
   if (!/^[\w-]{1,120}$/.test(id)) notFound();
+  const viewer = await requireUser();
   const channel = await prisma.channel.findUnique({ where: { id }, include: { country: true } });
   if (!channel) notFound();
 
@@ -61,10 +64,23 @@ export default async function ChannelDetail({ params }: { params: Promise<{ id: 
           {channel.drm ? " · DRM" : ""}
           {channel.subtitleSample ? " · subtitle sample" : ""}
         </p>
-        <form action={runTestOnChannel}>
-          <input type="hidden" name="channelId" value={channel.id} />
-          <button className="mt-2 rounded bg-black px-3 py-1 text-sm text-white">Run test on this channel</button>
-        </form>
+        <div className="flex flex-wrap items-center gap-3">
+          <form action={runTestOnChannel}>
+            <input type="hidden" name="channelId" value={channel.id} />
+            <button className="mt-2 rounded bg-black px-3 py-1 text-sm text-white">Run test on this channel</button>
+          </form>
+          {viewer.role === "admin" &&
+            (["isReference", "subtitleSample"] as const).map((flag) => (
+              <form key={flag} action={setChannelFlag}>
+                <input type="hidden" name="channelId" value={channel.id} />
+                <input type="hidden" name="flag" value={flag} />
+                <input type="hidden" name="value" value={String(!channel[flag])} />
+                <button className="mt-2 rounded border border-neutral-300 px-3 py-1 text-sm">
+                  {channel[flag] ? "Remove from" : "Add to"} {flag === "isReference" ? "reference channels" : "subtitle sample"}
+                </button>
+              </form>
+            ))}
+        </div>
       </div>
 
       {!latest ? (

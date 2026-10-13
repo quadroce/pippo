@@ -139,3 +139,12 @@ A run created with `jobId` closes its job as `done` when it finishes (or is crea
 - **Rendering**: rendered channels against the API, highlighted programme mismatches, empty tiles, scroll load time. "Now marker position" is shown as not applicable for the same reason.
 - **Issues table**: per channel, issue type, time range (shown in the country timezone) and detail, with a filter by type and **Download CSV** (`/api/epg/<runId>/issues.csv`, signed-in users only; UTC and local columns) to hand to the EPG team as the runbook asks. The agent keeps at most 300 issues per run; the counts at the top are complete.
 - **Failed checks** of the run and the **guide screenshot** taken during the run (viewport of the top of the list), served through `/api/epg/<runId>/screenshot` from private Blob storage. The agent uploads it before the EPG result; if the upload fails the EPG result is still stored without it. Migration `20261014000000_epg_screenshot` adds `EpgResult.screenshotUrl`.
+
+## Channel flags and the subtitle sample (step 4.3)
+
+`/settings/channels` (admin only, linked from Settings; `?country=` picks a country): every channel the agent has reported for the country with two checkboxes, **Reference** and **Subtitle sample**, a search box, and one **Save** that updates all of them in a single transaction and writes one audit-log entry with what was added and removed. Ids from another country are rejected, not ignored.
+
+- The subtitle sample is what the agent receives in the heartbeat (`subtitleSample`) and where it records audio and runs Whisper, so the page counts the selection and warns above 10 channels: transcription runs on the agent PC and lengthens the daily run.
+- To help choose, each row shows what the last run learned: the subtitle state (Working, Track without content, ...) and the sync result or the reason there was none (for example "audio is 'it' and the subtitles are 'en': a translation cannot be aligned"). Sync only works where the spoken and subtitle languages match and real cues arrive; live-news channels show a steady delay of several seconds that is normal for live captioning.
+- On a channel page admins also get two shortcut buttons to add or remove that one channel from the reference channels or the subtitle sample (audit-logged).
+- The list is empty until a full measurement has reported the country's channels.
