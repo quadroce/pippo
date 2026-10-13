@@ -7,6 +7,7 @@ const db = vi.hoisted(() => ({
   run: { create: vi.fn(), findUnique: vi.fn() },
   job: { update: vi.fn(), updateMany: vi.fn(), findFirst: vi.fn(), findUnique: vi.fn() },
   channel: { findMany: vi.fn() },
+  thresholdOverride: { findMany: vi.fn() },
 }));
 vi.mock("@/lib/db", () => ({ prisma: db }));
 vi.mock("@/lib/notices", () => ({ sendBlockedNotice: vi.fn() }));
@@ -53,6 +54,7 @@ describe("heartbeat", () => {
     );
     db.country.findUnique.mockResolvedValue({ code: "IT", runHour: "06:00", timezone: "Europe/Rome" });
     db.channel.findMany.mockResolvedValue([{ id: "it-cnn" }, { id: "it-rally" }]);
+    db.thresholdOverride.findMany.mockResolvedValue([{ checkId: "player.ttff", warn: 6000, critical: 20000 }]);
     const res = await heartbeat(json("heartbeat", { agentVersion: "0.1.0", detectedCountry: "it" }));
     expect(res.status).toBe(200);
     const body = await res.json();
@@ -63,6 +65,8 @@ describe("heartbeat", () => {
     });
     expect(body.thresholds["img.broken_ratio"]).toEqual({ warn: 0.01, critical: 0.05 }); // defaults when nothing is stored
     expect(body.subtitleSample).toEqual(["it-cnn", "it-rally"]);
+    expect(body.thresholds["player.ttff"]).toEqual({ warn: 6000, critical: 20000 }); // the active country overrides the default
+    expect(db.thresholdOverride.findMany.mock.calls[0][0].where).toEqual({ countryCode: "IT" });
     expect(db.channel.findMany.mock.calls[0][0].where).toEqual({ countryCode: "IT", subtitleSample: true });
     expect(db.agent.upsert.mock.calls[0][0].update.detectedCountry).toBe("IT");
   });

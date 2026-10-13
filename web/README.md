@@ -148,3 +148,12 @@ A run created with `jobId` closes its job as `done` when it finishes (or is crea
 - To help choose, each row shows what the last run learned: the subtitle state (Working, Track without content, ...) and the sync result or the reason there was none (for example "audio is 'it' and the subtitles are 'en': a translation cannot be aligned"). Sync only works where the spoken and subtitle languages match and real cues arrive; live-news channels show a steady delay of several seconds that is normal for live captioning.
 - On a channel page admins also get two shortcut buttons to add or remove that one channel from the reference channels or the subtitle sample (audit-logged).
 - The list is empty until a full measurement has reported the country's channels.
+
+## Per-country threshold overrides (step 5.1)
+
+The thresholds section of Settings has a scope selector: **Global** or one country. A country override (`ThresholdOverride`, one row per country and check) replaces **both** values of a check for that country; checks without an override follow the global value, which follows the catalog default. "Use the global value" deletes the row. Every save and reset is audit-logged with its scope.
+
+- `lib/thresholds.ts` `layerThresholds()` builds the layers (defaults, then global overrides, then the country's rows); `getEffectiveThresholds(country)` reads them.
+- The heartbeat returns the effective thresholds of the **active** country, so the agent grades a run with them. The server-evaluated `epg.channel_count_drop` uses the run's own country. If an on-demand job targets a country other than the active one, the agent still grades with the active country's values until the active country is switched (the pre-check already forces the VPN and the selection to agree for real runs).
+- Typical uses seen in the data so far: a looser `sub.sync_offset` for countries whose channels are live-captioned news, a looser `epg.language_mismatch` where many shows are foreign, a looser `player.ttff` once real numbers at production parallelism exist.
+- **Tuning on real data** (the other half of this roadmap item) cannot be done yet: it needs weeks of runs from the deployed system.

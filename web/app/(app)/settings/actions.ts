@@ -8,6 +8,15 @@ import { CHECK_CATALOG, parseEmails, parseThresholdInput } from "@/lib/threshold
 
 export type FormState = { ok: boolean; message: string } | null;
 
+/** "global" or the code of an existing country (the scope the threshold form is editing). */
+async function resolveScope(formData: FormData): Promise<string> {
+  const raw = String(formData.get("scope") ?? "global");
+  if (raw === "global") return "global";
+  const code = raw.toUpperCase();
+  const country = /^[A-Z]{2}$/.test(code) ? await prisma.country.findUnique({ where: { code } }) : null;
+  return country ? country.code : "invalid";
+}
+
 export async function saveThreshold(_prev: FormState, formData: FormData): Promise<FormState> {
   const admin = await requireAdmin();
   const id = String(formData.get("checkId") ?? "");
@@ -17,6 +26,21 @@ export async function saveThreshold(_prev: FormState, formData: FormData): Promi
   const parsed = parseThresholdInput(def.unit, String(formData.get("warn") ?? ""), String(formData.get("critical") ?? ""), def.lowerIsWorse);
   if (!parsed.ok) return { ok: false, message: parsed.error };
 
+  const scope = await resolveScope(formData);
+  if (scope === "invalid") return { ok: false, message: "Unknown country" };
+
+  if (scope !== "global") {
+    const row = { warn: parsed.value.warn, critical: parsed.value.critical };
+    await prisma.thresholdOverride.upsert({
+      where: { countryCode_checkId: { countryCode: scope, checkId: id } },
+      update: row,
+      create: { countryCode: scope, checkId: id, ...row },
+    });
+    await audit(admin.id, "threshold.update", { scope, checkId: id, to: parsed.value });
+    revalidatePath("/settings");
+    return { ok: true, message: `Saved for ${scope}. The agent picks it up at its next heartbeat while ${scope} is the active country.` };
+  }
+
   const stored = await getStoredThresholds();
   const next = { ...stored, [id]: parsed.value } as object;
   await prisma.setting.upsert({
@@ -24,7 +48,7 @@ export async function saveThreshold(_prev: FormState, formData: FormData): Promi
     update: { value: next },
     create: { key: SETTING_THRESHOLDS, value: next },
   });
-  await audit(admin.id, "threshold.update", { checkId: id, from: stored[id] ?? "default", to: parsed.value });
+  await audit(admin.id, "threshold.update", { scope: "global", checkId: id, from: stored[id] ?? "default", to: parsed.value });
   revalidatePath("/settings");
   return { ok: true, message: "Saved. The agent picks it up at its next heartbeat." };
 }
@@ -33,6 +57,14 @@ export async function resetThreshold(_prev: FormState, formData: FormData): Prom
   const admin = await requireAdmin();
   const id = String(formData.get("checkId") ?? "");
   if (!CHECK_CATALOG.some((c) => c.id === id)) return { ok: false, message: "Unknown check" };
+  const scope = await resolveScope(formData);
+  if (scope === "invalid") return { ok: false, message: "Unknown country" };
+  if (scope !== "global") {
+    const res = await prisma.thresholdOverride.deleteMany({ where: { countryCode: scope, checkId: id } });
+    await audit(admin.id, "threshold.reset", { scope, checkId: id, removed: res.count > 0 });
+    revalidatePath("/settings");
+    return { ok: true, message: `${scope} follows the global value again.` };
+  }
   const stored = await getStoredThresholds();
   const { [id]: removed, ...rest } = stored;
   await prisma.setting.upsert({

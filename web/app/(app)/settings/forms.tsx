@@ -22,6 +22,7 @@ export function ThresholdRow(props: {
   warn: string;
   critical: string;
   isDefault: boolean;
+  scope: string;
   defaultText: string;
   save: Action;
   reset: Action;
@@ -41,6 +42,7 @@ export function ThresholdRow(props: {
       <td className="py-3" colSpan={2}>
         <form action={saveAction} className="flex flex-wrap items-end gap-3">
           <input type="hidden" name="checkId" value={props.checkId} />
+          <input type="hidden" name="scope" value={props.scope} />
           <label className="text-sm">
             Warning ({props.unitLabel})
             <input name="warn" defaultValue={props.warn} inputMode="decimal" className={`${inputClass} ml-1`} />
@@ -56,8 +58,9 @@ export function ThresholdRow(props: {
         {!props.isDefault && (
           <form action={resetAction} className="mt-1">
             <input type="hidden" name="checkId" value={props.checkId} />
+            <input type="hidden" name="scope" value={props.scope} />
             <button disabled={resetPending} className="text-xs underline">
-              Reset to default
+              {props.scope === "global" ? "Reset to default" : "Use the global value"}
             </button>
           </form>
         )}

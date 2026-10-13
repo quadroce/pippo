@@ -5,6 +5,7 @@ const db = vi.hoisted(() => ({
   run: { findUnique: vi.fn() },
   epgResult: { findFirst: vi.fn(), upsert: vi.fn() },
   setting: { findUnique: vi.fn() },
+  thresholdOverride: { findMany: vi.fn() },
 }));
 vi.mock("@/lib/db", () => ({ prisma: db }));
 
@@ -34,6 +35,7 @@ beforeEach(() => {
   db.run.findUnique.mockResolvedValue({ id: RUN, countryCode: "IT", status: "running", startedAt: new Date() });
   db.setting.findUnique.mockResolvedValue(null);
   db.epgResult.findFirst.mockResolvedValue(null);
+  db.thresholdOverride.findMany.mockResolvedValue([]);
 });
 
 describe("channelCountDropCheck", () => {
