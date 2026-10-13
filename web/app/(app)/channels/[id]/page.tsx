@@ -4,6 +4,7 @@ import { checkName, formatValue } from "@/lib/alerts";
 import { prisma } from "@/lib/db";
 import { getGlobalThresholds } from "@/lib/settings";
 import { CHECK_CATALOG } from "@/lib/thresholds";
+import { subtitleState } from "@/lib/subtitles-view";
 import { StatusBadge } from "../../status-badge";
 import { runTestOnChannel } from "./actions";
 import { HistoryCharts, type Point } from "./history-charts";
@@ -87,6 +88,11 @@ export default async function ChannelDetail({ params }: { params: Promise<{ id: 
                 </>
               )}
             </p>
+            {subtitleState(latest.metrics) && (
+              <p className="text-sm">
+                Subtitles: <strong>{subtitleState(latest.metrics)?.label}</strong> — {subtitleState(latest.metrics)?.hint}
+              </p>
+            )}
             {typeof (latest.metrics as Record<string, unknown>)?.error === "string" && (
               <p role="alert" className="text-sm text-red-700">
                 Measurement error: {String((latest.metrics as Record<string, unknown>).error)}

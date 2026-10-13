@@ -13,7 +13,8 @@ from pippo.browser import open_context
 from pippo.config import AGENT_DIR
 from pippo.probes.player import measure_buffer
 from pippo.profile import Profile
-from pippo.recorder import record_channel
+from pippo.probes.subtitles import measure_subtitles
+from pippo.recorder import record_channel, subtitle_config_from_profile
 from pippo.thresholds import Threshold
 
 log = logging.getLogger(__name__)
@@ -45,11 +46,14 @@ def measure_channel(
         try:
             page = ctx.new_page()
             log.info("recording %s for %ds", url, window_sec)
-            rec = record_channel(page, url, window_sec, out_dir)
+            rec = record_channel(page, url, window_sec, out_dir, subtitles=subtitle_config_from_profile(profile.data))
         finally:
             ctx.close()
 
     result = measure_buffer(rec, overrides)
+    subs = measure_subtitles(rec, overrides)
+    result["metrics"].update(subs["metrics"])
+    result["checks"] += subs["checks"]
     result.update(url=url, screenshots=rec["screenshots"], navError=rec["navError"], windowSec=window_sec)
     (out_dir / "result.json").write_text(json.dumps(result, indent=1, default=str), encoding="utf-8")
     (out_dir / "raw-buffer.json").write_text(json.dumps(rec, default=str), encoding="utf-8")

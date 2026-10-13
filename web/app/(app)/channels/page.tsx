@@ -1,6 +1,7 @@
 import Link from "next/link";
 import { prisma } from "@/lib/db";
 import { getActiveCountry, latestCompletedRun } from "@/lib/queries";
+import { subtitleState } from "@/lib/subtitles-view";
 import { StatusBadge } from "../status-badge";
 
 export const dynamic = "force-dynamic";
@@ -52,6 +53,7 @@ export default async function ChannelsPage({ searchParams }: { searchParams: Pro
                 <th>Stalls</th>
                 <th title="Longest run of black / frozen frames, seconds">Black / frozen (s)</th>
                 <th title="Longest silence, seconds">Silence (s)</th>
+                <th>Subtitles</th>
                 <th>Images</th>
                 <th>Last measured</th>
               </tr>
@@ -78,6 +80,7 @@ export default async function ChannelsPage({ searchParams }: { searchParams: Pro
                       {plain(black)} / {plain(frozen)}
                     </td>
                     <td>{plain(metric(r.metrics, "player.audio_silence"))}</td>
+                    <td title={subtitleState(r.metrics)?.hint}>{subtitleState(r.metrics)?.label ?? "—"}</td>
                     <td>{imgFailed.length === 0 ? "OK" : imgFailed.map((c) => c.checkId).join(", ")}</td>
                     <td>{r.measuredAt.toISOString().slice(0, 16).replace("T", " ")}</td>
                   </tr>

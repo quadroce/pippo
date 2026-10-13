@@ -49,7 +49,9 @@ selectors:
   rail_carousel: "[data-testid='base-carousel']"
   home_hero: "[data-testid='hero-and-buckets']"
   player_region: "[aria-label='Live Video Player']"
-  subtitles_menu_button: "[aria-label='Audio and Subtitles menu, opens a dialog']"   # UNVERIFIED across countries: label is English here
+  subtitles_menu_button: "button.btn-audio-cc"      # opens the "Audio and Subtitles" panel (verified on IT; shown only on hover)
+  subtitles_radio: ".audio-cc-panel-menu-section [role=radio]"   # options: "Disattivato" (off) and one per declared track
+  subtitles_off_words: ["disattiv", "off", "nessun", "none"]     # lower-case fragments of the "off" label, per language
   # UNVERIFIED (roles seen, structure not yet analysed): EPG grid uses ARIA roles.
   epg_grid: "[role='grid']"
   epg_row: "[role='row']"
@@ -58,7 +60,7 @@ selectors:
   # subtitle text overlay.
   epg_now_marker: null
   player_title: null
-  subtitle_text: null
+  subtitle_text: ".aa-player-skin-cc-renderer-container"   # where the player draws the active cue (verified on IT)
 
 consent:
   # The banner (Ketch) shows "Accetta" / "Rifiuta" / "Gestisci i Cookie". Discovery never clicks it
