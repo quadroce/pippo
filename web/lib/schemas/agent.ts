@@ -27,6 +27,8 @@ export const heartbeatResponse = z.object({
     .nullable(),
   // Effective global thresholds per checkId (Settings overrides on top of the catalog defaults).
   thresholds: z.record(z.string(), z.object({ warn: z.number().nullable(), critical: z.number().nullable() })),
+  // Channel ids ("<cc>-<slug>") of the active country flagged as subtitle sample: the agent measures sync on these only.
+  subtitleSample: z.array(z.string()),
 });
 export type HeartbeatResponse = z.infer<typeof heartbeatResponse>;
 

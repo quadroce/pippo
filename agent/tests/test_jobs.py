@@ -112,3 +112,26 @@ def test_player_measure_restricts_to_requested_channels_and_reports_missing_ones
     assert measured == [(["a", "c"], 30)]
     assert [(o.channel.slug, o.error) for o in results] == [("gone", "channel not found in the current guide")]
     assert isinstance(results[0], ChannelOutcome)
+
+
+def test_server_config_reads_thresholds_and_the_subtitle_sample(monkeypatch):
+    import pippo.agent_loop as loop
+
+    reply = {"activeCountry": "IT", "thresholds": {"img.broken_ratio": {"warn": 0.1, "critical": None}}, "subtitleSample": ["it-cnn", 5, "it-rally"]}
+    api = ApiClient(S, transport=httpx.MockTransport(lambda r: httpx.Response(200, json=reply)), sleep=lambda s: None)
+    monkeypatch.setattr(loop, "detect_ip_country", lambda settings: "IT")
+    cfg = loop.server_config(S, api)
+    assert cfg.subtitle_sample == ["it-cnn", "it-rally"] and "img.broken_ratio" in cfg.thresholds
+    down = ApiClient(S, transport=httpx.MockTransport(lambda r: httpx.Response(500)), sleep=lambda s: None)
+    assert loop.server_config(S, down).subtitle_sample == [] and loop.server_config(S, down).thresholds == {}
+
+
+def test_sync_plan_reaches_the_pool_only_when_there_is_a_sample(monkeypatch):
+    import pippo.players_run as pr
+
+    seen = []
+    monkeypatch.setattr(pr, "measure_players", lambda country, chans, cb, **kw: seen.append(kw.get("sync")))
+    fake = object()
+    pr.player_measure_for(S, "IT", True, sync_slugs={"cnn"}, transcriber=fake)([], lambda o: None)
+    pr.player_measure_for(S, "IT", True)([], lambda o: None)
+    assert seen[0].slugs == {"cnn"} and seen[0].transcriber is fake and seen[1] is None

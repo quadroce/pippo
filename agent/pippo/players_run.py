@@ -24,6 +24,7 @@ from pippo.config import AGENT_DIR
 from pippo.guide import GuideChannel
 from pippo.probes.player import measure_buffer
 from pippo.profile import Profile
+from pippo.probes.subtitle_sync import Transcriber, measure_sync
 from pippo.probes.subtitles import measure_subtitles
 from pippo.recorder import record_channel, subtitle_config_from_profile
 from pippo.thresholds import Threshold
@@ -31,6 +32,26 @@ from pippo.thresholds import Threshold
 log = logging.getLogger(__name__)
 
 NUMERIC_ID_RE = re.compile(r"/live-tv/(\d+)")
+
+
+@dataclass
+class SyncPlan:
+    """Channels whose subtitle sync is measured (audio captured and transcribed), and the transcriber to use."""
+
+    slugs: set[str]
+    transcriber: Transcriber
+
+
+def write_wav(pcm: dict, path: Path) -> None:
+    """Keep the captured audio next to the other evidence (16 kHz mono, 16 bit)."""
+    import base64
+    import wave
+
+    with wave.open(str(path), "wb") as w:
+        w.setnchannels(1)
+        w.setsampwidth(2)
+        w.setframerate(16000)
+        w.writeframes(base64.b64decode(pcm["b64"]))
 
 
 @dataclass
@@ -50,7 +71,9 @@ def numeric_id(channel: GuideChannel) -> str | None:
     return m.group(1) if m else None
 
 
-def _measure_one(ctx, profile: Profile, ch: GuideChannel, window_sec: int, overrides, out_dir: Path) -> ChannelOutcome:
+def _measure_one(
+    ctx, profile: Profile, ch: GuideChannel, window_sec: int, overrides, out_dir: Path, sync: SyncPlan | None = None
+) -> ChannelOutcome:
     nid = numeric_id(ch)
     if not nid:
         return ChannelOutcome(ch, error="no channel link in the guide data")
@@ -58,7 +81,8 @@ def _measure_one(ctx, profile: Profile, ch: GuideChannel, window_sec: int, overr
     ch_dir = out_dir / ch.slug
     page = ctx.new_page()
     try:
-        rec = record_channel(page, url, window_sec, ch_dir, subtitles=subtitle_config_from_profile(profile.data))
+        capture = bool(sync and ch.slug in sync.slugs)
+        rec = record_channel(page, url, window_sec, ch_dir, subtitles=subtitle_config_from_profile(profile.data), capture_audio=capture)
     finally:
         try:
             page.close()
@@ -69,6 +93,16 @@ def _measure_one(ctx, profile: Profile, ch: GuideChannel, window_sec: int, overr
     subs = measure_subtitles(rec, overrides)
     result["metrics"].update(subs["metrics"])
     result["checks"] += subs["checks"]
+    if sync and rec.get("pcm"):
+        try:
+            ch_dir.mkdir(parents=True, exist_ok=True)
+            write_wav(rec["pcm"], ch_dir / "audio-16k.wav")
+            aligned = measure_sync(rec, sync.transcriber, overrides)
+            result["metrics"].update(aligned["metrics"])
+            result["checks"] += aligned["checks"]
+        except Exception as e:  # a transcription problem must not cost the channel its other results
+            log.warning("%s: subtitle sync failed: %s", ch.slug, str(e).splitlines()[0])
+            result["metrics"]["sub.sync_note"] = f"sync failed: {str(e).splitlines()[0][:150]}"
     ch_dir.mkdir(parents=True, exist_ok=True)
     raw = ch_dir / "raw-buffer.json"
     raw.write_text(json.dumps({k: rec[k] for k in ("windowSec", "navError", "buffer", "network")}, default=str), encoding="utf-8")
@@ -90,6 +124,7 @@ def measure_players(
     open_ctx: Callable = open_context,
     playwright_factory: Callable = sync_playwright,
     measure_one: Callable = _measure_one,
+    sync: SyncPlan | None = None,
 ) -> None:
     """Measure every channel; call `on_result` (from worker threads) as each one finishes."""
     profile = profile or Profile.load()
@@ -111,7 +146,8 @@ def measure_players(
                         except queue.Empty:
                             return
                         try:
-                            outcome = measure_one(ctx, profile, ch, window_sec, overrides, out_dir)
+                            extra = {"sync": sync} if sync else {}
+                            outcome = measure_one(ctx, profile, ch, window_sec, overrides, out_dir, **extra)
                         except Exception as e:
                             log.warning("worker %d: %s failed: %s", k, ch.slug, str(e).splitlines()[0])
                             outcome = ChannelOutcome(ch, error=f"measurement crashed: {str(e).splitlines()[0][:300]}")
@@ -165,6 +201,8 @@ def player_measure_for(
     limit: int | None = None,
     window_sec: int | None = None,
     only_slugs: set[str] | None = None,
+    sync_slugs: set[str] | None = None,
+    transcriber: Transcriber | None = None,
 ):
     """Adapter for runner.execute_run: measures the guide's channels with the configured window and parallelism.
 
@@ -172,6 +210,13 @@ def player_measure_for(
     guide does not list are reported as `error` results so the request is never silently shortened.
     """
     window = window_sec or settings.observation_window_sec
+    sync = None
+    if sync_slugs:
+        if transcriber is None:
+            from pippo.transcribe import WhisperTranscriber
+
+            transcriber = WhisperTranscriber()
+        sync = SyncPlan(set(sync_slugs), transcriber)
 
     def run(channels: list[GuideChannel], on_result: Callable[[ChannelOutcome], None]) -> None:
         chosen = channels[:limit] if limit else channels
@@ -188,6 +233,7 @@ def player_measure_for(
             parallelism=settings.parallelism,
             headless=headless,
             overrides=overrides,
+            sync=sync,
         )
 
     return run

@@ -6,6 +6,7 @@ const db = vi.hoisted(() => ({
   country: { findUnique: vi.fn() },
   run: { create: vi.fn(), findUnique: vi.fn() },
   job: { update: vi.fn(), updateMany: vi.fn(), findFirst: vi.fn(), findUnique: vi.fn() },
+  channel: { findMany: vi.fn() },
 }));
 vi.mock("@/lib/db", () => ({ prisma: db }));
 vi.mock("@/lib/notices", () => ({ sendBlockedNotice: vi.fn() }));
@@ -51,6 +52,7 @@ describe("heartbeat", () => {
       where.key === "activeCountry" ? { value: "IT" } : null,
     );
     db.country.findUnique.mockResolvedValue({ code: "IT", runHour: "06:00", timezone: "Europe/Rome" });
+    db.channel.findMany.mockResolvedValue([{ id: "it-cnn" }, { id: "it-rally" }]);
     const res = await heartbeat(json("heartbeat", { agentVersion: "0.1.0", detectedCountry: "it" }));
     expect(res.status).toBe(200);
     const body = await res.json();
@@ -60,6 +62,8 @@ describe("heartbeat", () => {
       schedule: { countryCode: "IT", runHour: "06:00", timezone: "Europe/Rome" },
     });
     expect(body.thresholds["img.broken_ratio"]).toEqual({ warn: 0.01, critical: 0.05 }); // defaults when nothing is stored
+    expect(body.subtitleSample).toEqual(["it-cnn", "it-rally"]);
+    expect(db.channel.findMany.mock.calls[0][0].where).toEqual({ countryCode: "IT", subtitleSample: true });
     expect(db.agent.upsert.mock.calls[0][0].update.detectedCountry).toBe("IT");
   });
 
