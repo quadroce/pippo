@@ -24,7 +24,8 @@ from pippo.config import AGENT_DIR
 from pippo.guide import GuideChannel
 from pippo.probes.player import measure_buffer
 from pippo.profile import Profile
-from pippo.recorder import record_channel
+from pippo.probes.subtitles import measure_subtitles
+from pippo.recorder import record_channel, subtitle_config_from_profile
 from pippo.thresholds import Threshold
 
 log = logging.getLogger(__name__)
@@ -57,7 +58,7 @@ def _measure_one(ctx, profile: Profile, ch: GuideChannel, window_sec: int, overr
     ch_dir = out_dir / ch.slug
     page = ctx.new_page()
     try:
-        rec = record_channel(page, url, window_sec, ch_dir)
+        rec = record_channel(page, url, window_sec, ch_dir, subtitles=subtitle_config_from_profile(profile.data))
     finally:
         try:
             page.close()
@@ -65,6 +66,9 @@ def _measure_one(ctx, profile: Profile, ch: GuideChannel, window_sec: int, overr
             pass
     rec["expectedId"] = nid
     result = measure_buffer(rec, overrides)
+    subs = measure_subtitles(rec, overrides)
+    result["metrics"].update(subs["metrics"])
+    result["checks"] += subs["checks"]
     ch_dir.mkdir(parents=True, exist_ok=True)
     raw = ch_dir / "raw-buffer.json"
     raw.write_text(json.dumps({k: rec[k] for k in ("windowSec", "navError", "buffer", "network")}, default=str), encoding="utf-8")

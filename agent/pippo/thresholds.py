@@ -48,6 +48,13 @@ DEFAULTS: dict[str, Threshold] = {
     "epg.empty_cells": Threshold(warn=0.01),
     "epg.scroll_load_time": Threshold(warn=5.0),
     "player.now_playing_mismatch": Threshold(warn=0),
+    # Subtitles (section D).
+    "sub.declared_not_loaded": Threshold(critical=0),   # any
+    "sub.cues_not_rendered": Threshold(critical=0),     # any
+    "sub.cue_gap": Threshold(warn=30),                  # seconds of speech without a cue
+    "sub.segment_errors": Threshold(warn=0),            # any
+    "sub.language_mismatch": Threshold(warn=0),         # any
+    "sub.sync_offset": Threshold(warn=1.0, critical=2.5),  # seconds (step 4.2)
 }
 
 # Checks where a value BELOW the threshold is the failure (hours of programming left, for example).

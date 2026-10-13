@@ -11,9 +11,11 @@ All times are milliseconds since the page's time origin (navigation start).
 
 from __future__ import annotations
 
+import json
 import logging
 import re
 import time
+from dataclasses import dataclass, field
 from pathlib import Path
 from urllib.parse import urlparse
 
@@ -104,11 +106,112 @@ INIT_SCRIPT = r"""
     P.audio.push({ t: now(), db: rms > 0 ? 20 * Math.log10(rms) : -120, muted: v.muted, ct: v.currentTime, paused: v.paused });
   }, 500);
 
+  P.subs = [];
+  setInterval(() => {                                   // subtitle tracks, every 2 s
+    const v = video(); if (!v) return;
+    const tracks = [...v.textTracks].filter(t => t.kind === 'subtitles' || t.kind === 'captions').map(t => ({
+      lang: t.language, label: t.label, mode: t.mode, cues: t.cues ? t.cues.length : null,
+      active: t.activeCues ? [...t.activeCues].map(c => String(c.text).slice(0, 120)) : [] }));
+    if (!tracks.length) return;
+    let dom = null;                                     // text of the player's own caption element, if configured
+    if (window.__pippoSubSelector) { const e = document.querySelector(window.__pippoSubSelector); dom = e ? (e.innerText || '').trim() : ''; }
+    P.subs.push({ t: now(), ct: v.currentTime, tracks, dom });
+  }, 2000);
+  window.__pippoSubCues = () => {
+    const v = video(); const out = []; if (!v) return out;
+    for (const t of v.textTracks) {
+      if ((t.kind !== 'subtitles' && t.kind !== 'captions') || !t.cues) continue;
+      for (const c of t.cues) { out.push({ start: c.startTime, end: c.endTime, text: String(c.text).replace(/<[^>]+>/g, '') }); if (out.length >= 300) return out; }
+    }
+    return out;
+  };
+
   new MutationObserver(() => { const v = video(); if (v) attach(v); })
     .observe(document, { childList: true, subtree: true });
   document.addEventListener('DOMContentLoaded', () => { const v = video(); if (v) attach(v); });
 })();
 """
+
+
+DECLARED_JS = """
+() => {
+  const v = document.querySelector('video');
+  return v ? [...v.textTracks].filter(t => t.kind === 'subtitles' || t.kind === 'captions').map(t => ({ lang: t.language, label: t.label, mode: t.mode })) : [];
+}
+"""
+SUBTITLES_ON_JS = """
+() => { const v = document.querySelector('video'); return !!v && [...v.textTracks].some(t => (t.kind === 'subtitles' || t.kind === 'captions') && t.mode !== 'disabled'); }
+"""
+
+
+@dataclass
+class SubtitleConfig:
+    """How to switch subtitles on the way a viewer does (Pluto's Audio and Subtitles menu)."""
+
+    enable_after_sec: float = 10.0
+    menu_button: str = "button.btn-audio-cc"
+    radio: str = ".audio-cc-panel-menu-section [role=radio]"
+    off_words: tuple[str, ...] = ("disattiv", "off", "nessun", "aus", "desactiv", "desactiv", "none")
+    consent_reject: tuple[str, ...] = ("Rifiuta",)
+    text_selector: str | None = None  # element that shows the rendered cue text, when known
+
+
+def subtitle_config_from_profile(data: dict) -> SubtitleConfig:
+    """SubtitleConfig from pluto_profile.yaml (selectors, off-words and the consent reject label)."""
+    sel = data.get("selectors", {})
+    cfg = SubtitleConfig()
+    return SubtitleConfig(
+        menu_button=sel.get("subtitles_menu_button") or cfg.menu_button,
+        radio=sel.get("subtitles_radio") or cfg.radio,
+        off_words=tuple(sel.get("subtitles_off_words") or cfg.off_words),
+        consent_reject=tuple((data.get("consent") or {}).get("reject_button_text") or cfg.consent_reject),
+        text_selector=sel.get("subtitle_text"),
+    )
+
+
+def enable_subtitles(page: Page, cfg: SubtitleConfig) -> dict:
+    """Pick the first non-"off" subtitle option in the player menu. Never raises: the outcome is the result."""
+    info: dict = {"declared": [], "enabled": False, "enabledAtMs": None, "enableError": None}
+    try:
+        info["declared"] = page.evaluate(DECLARED_JS)
+        if not info["declared"]:
+            return info
+        if any(d.get("mode") != "disabled" for d in info["declared"]):
+            # The player remembers the last choice in the profile: subtitles are already on.
+            info["enabled"], info["enabledAtMs"] = True, page.evaluate("Math.round(performance.now())")
+            return info
+        for word in cfg.consent_reject:  # privacy-preserving default: reject non-essential cookies
+            btn = page.get_by_role("button", name=word)
+            if btn.count():
+                btn.first.click(timeout=3000)
+                page.wait_for_timeout(800)
+                break
+        box = page.locator("video").first.bounding_box()
+        if box:  # the controls only appear when the pointer is over the player
+            page.mouse.move(box["x"] + box["width"] / 2, box["y"] + box["height"] / 2)
+            page.wait_for_timeout(600)
+            page.mouse.move(box["x"] + box["width"] / 2 + 15, box["y"] + box["height"] / 2 + 8)
+        page.locator(cfg.menu_button).first.click(timeout=6000, force=True)
+        page.wait_for_timeout(1000)
+        radios = page.locator(cfg.radio)
+        try:
+            radios.first.wait_for(timeout=3000)
+        except Exception:
+            pass
+        labels = [radios.nth(i).inner_text().strip().lower() for i in range(radios.count())]
+        choices = [i for i, label in enumerate(labels) if not any(w in label for w in cfg.off_words)]
+        if not choices:
+            info["enableError"] = f"no subtitle option in the menu ({labels})"
+            return info
+        radios.nth(choices[-1]).click(timeout=5000)
+        page.wait_for_timeout(1500)
+        info["enabled"] = bool(page.evaluate(SUBTITLES_ON_JS))
+        info["enabledAtMs"] = page.evaluate("Math.round(performance.now())")
+        if not info["enabled"]:
+            info["enableError"] = "the option was clicked but the track stayed disabled"
+    except Exception as e:
+        info["enableError"] = str(e).splitlines()[0][:200]
+    return info
 
 
 class NetworkLog:
@@ -160,9 +263,18 @@ class NetworkLog:
             )
 
 
-def record_channel(page: Page, url: str, window_sec: int = 60, shots_dir: Path | None = None) -> dict:
+def record_channel(
+    page: Page,
+    url: str,
+    window_sec: int = 60,
+    shots_dir: Path | None = None,
+    subtitles: SubtitleConfig | None = None,
+) -> dict:
     """Open a channel page and record `window_sec` seconds of playback. Returns the raw buffer."""
     page.add_init_script(INIT_SCRIPT)
+    if subtitles and subtitles.text_selector:
+        page.add_init_script(f"window.__pippoSubSelector = {json.dumps(subtitles.text_selector)};")
+    sub_info: dict | None = None
     t0 = time.time()
     net = NetworkLog(page, t0)
     nav_error = None
@@ -178,6 +290,8 @@ def record_channel(page: Page, url: str, window_sec: int = 60, shots_dir: Path |
     while time.time() < deadline and not nav_error:
         page.wait_for_timeout(500)
         elapsed = time.time() - t0
+        if subtitles and sub_info is None and elapsed >= subtitles.enable_after_sec and _playing(page):
+            sub_info = enable_subtitles(page, subtitles)
         if shots_dir and marks and elapsed >= marks[0] and marks[0] <= window_sec:
             sec = marks.pop(0)
             shots.append(_shot(page, shots_dir, f"t{sec}", sec, "periodic"))
@@ -189,6 +303,11 @@ def record_channel(page: Page, url: str, window_sec: int = 60, shots_dir: Path |
                 shots.append(_shot(page, shots_dir, "failure", round(elapsed), "failure"))
 
     buffer = page.evaluate("window.__pippo || null") if not nav_error else None
+    if buffer is not None:
+        try:
+            buffer["subCues"] = page.evaluate("window.__pippoSubCues ? window.__pippoSubCues() : []")
+        except Exception as e:
+            log.debug("could not read subtitle cues: %s", e)
     final_url = urlparse(page.url).path  # path only: query strings may carry tokens
     ui_title, ui_title_at = None, None
     if not nav_error:
@@ -198,6 +317,7 @@ def record_channel(page: Page, url: str, window_sec: int = 60, shots_dir: Path |
             log.debug("could not read the channel title: %s", e)
     return {
         "finalPath": final_url,
+        "subtitleInfo": sub_info,
         "uiTitle": ui_title,
         "uiTitleAt": ui_title_at,
         "windowSec": window_sec,
@@ -206,6 +326,13 @@ def record_channel(page: Page, url: str, window_sec: int = 60, shots_dir: Path |
         "network": net.entries,
         "screenshots": [s for s in shots if s],
     }
+
+
+def _playing(page: Page) -> bool:
+    try:
+        return bool(page.evaluate("(() => { const v = document.querySelector('video'); return !!v && v.currentTime > 0 && !v.paused; })()"))
+    except Exception:
+        return False
 
 
 def _shot(page: Page, directory: Path, name: str, offset: int, kind: str) -> dict | None:

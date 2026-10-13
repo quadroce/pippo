@@ -224,6 +224,48 @@ export const CHECK_CATALOG: CheckDef[] = [
     description: "The title shown on the channel page differs from the programme the EPG says is on air.",
     defaults: { warn: 0, critical: null },
   },
+  {
+    id: "sub.declared_not_loaded",
+    name: "Subtitles declared but not loaded",
+    unit: "count",
+    description: "A subtitle track was enabled like a viewer would and no cues arrived, without the CDN's placeholder explanation. A placeholder-only track is not counted here. Any occurrence is critical.",
+    defaults: { warn: null, critical: 0 },
+  },
+  {
+    id: "sub.cues_not_rendered",
+    name: "Subtitle cues not rendered",
+    unit: "count",
+    description: "Cues were active but no subtitle text was visible in the player. Any occurrence is critical.",
+    defaults: { warn: null, critical: 0 },
+  },
+  {
+    id: "sub.cue_gap",
+    name: "Subtitle gap during speech",
+    unit: "seconds",
+    description: "Longest stretch of speech-like audio with no subtitle cue on screen.",
+    defaults: { warn: 30, critical: null },
+  },
+  {
+    id: "sub.segment_errors",
+    name: "Subtitle segment errors",
+    unit: "count",
+    description: "Subtitle playlist or WebVTT requests that failed.",
+    defaults: { warn: 0, critical: null },
+  },
+  {
+    id: "sub.language_mismatch",
+    name: "Subtitle language mismatch",
+    unit: "count",
+    description: "The language detected in the cue text differs from the language the track declares.",
+    defaults: { warn: 0, critical: null },
+  },
+  {
+    id: "sub.sync_offset",
+    name: "Subtitle sync offset",
+    unit: "seconds",
+    description: "Median offset between a cue start and the moment the words are spoken (sample channels only).",
+    defaults: { warn: 1, critical: 2.5 },
+  },
 ];
 
 export type StoredThresholds = Record<string, { warn: number | null; critical: number | null }>;
