@@ -114,6 +114,7 @@ export const epgResultRequest = z.object({
       }),
     )
     .max(500),
+  screenshotUrl: z.string().url().max(1000).optional(), // picture of the guide, uploaded beforehand
 });
 export type EpgResultRequest = z.infer<typeof epgResultRequest>;
 

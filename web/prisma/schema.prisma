@@ -140,6 +140,7 @@ model EpgResult {
   metrics Json
   issues  Json
   checks  Json? // check results of the run-level EPG checks
+  screenshotUrl String? // picture of the guide taken during the run (private Blob)
 
   run Run @relation(fields: [runId], references: [id], onDelete: Cascade)
 }

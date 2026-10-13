@@ -57,6 +57,15 @@ describe("POST /runs/:id/epg", () => {
     expect(drop).toMatchObject({ severity: "critical", passed: false });
   });
 
+  it("stores the guide screenshot url, or null when none was uploaded", async () => {
+    await post({ ...payload(100), screenshotUrl: "https://blob.example/epg.png" });
+    expect(db.epgResult.upsert.mock.calls[0][0].create.screenshotUrl).toBe("https://blob.example/epg.png");
+    expect(db.epgResult.upsert.mock.calls[0][0].update.screenshotUrl).toBe("https://blob.example/epg.png");
+    await post(payload(100));
+    expect(db.epgResult.upsert.mock.calls[1][0].create.screenshotUrl).toBeNull();
+    expect((await post({ ...payload(100), screenshotUrl: "not a url" })).status).toBe(400);
+  });
+
   it("stores the result unchanged when there is no previous run", async () => {
     await post(payload(100));
     expect(db.epgResult.upsert.mock.calls[0][0].create.checks).toHaveLength(1);

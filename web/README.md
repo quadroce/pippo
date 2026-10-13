@@ -130,3 +130,12 @@ A run created with `jobId` closes its job as `done` when it finishes (or is crea
 ## EPG data results (step 3.1)
 
 `POST /api/agent/runs/:id/epg` stores the run-level EPG result (`EpgResult`: metrics, issues and the check results; migration `20261013000000_epg_checks`). The server adds `epg.channel_count_drop` (channels now versus the previous completed run of the same country, critical above 10 % when the previous run had at least 10 channels; the share is editable in Settings). The daily report gains an EPG block (channels with data, shortest coverage ahead, channels without a current programme, with gaps, with overlaps) and failed EPG checks appear among its top issues. The settings catalog lists the EPG checks; for the coverage check lower is worse and the form validates the order of the two values accordingly. The EPG page itself is step 3.3.
+
+## EPG page (step 3.3)
+
+`/epg` (any signed-in member; `?country=` selects a country, default the active one) shows the latest completed run that has an EPG result:
+
+- **Data quality**: guide API state, channels with data against the guide total, shortest coverage ahead, channels with gaps, overlaps or no current programme, programmes missing metadata, descriptions in the wrong language. A value that failed a check is highlighted and says so in words; hover shows its threshold. "Timezone offset" is shown as not measured because the guide has no time axis (see the agent README).
+- **Rendering**: rendered channels against the API, highlighted programme mismatches, empty tiles, scroll load time. "Now marker position" is shown as not applicable for the same reason.
+- **Issues table**: per channel, issue type, time range (shown in the country timezone) and detail, with a filter by type and **Download CSV** (`/api/epg/<runId>/issues.csv`, signed-in users only; UTC and local columns) to hand to the EPG team as the runbook asks. The agent keeps at most 300 issues per run; the counts at the top are complete.
+- **Failed checks** of the run and the **guide screenshot** taken during the run (viewport of the top of the list), served through `/api/epg/<runId>/screenshot` from private Blob storage. The agent uploads it before the EPG result; if the upload fails the EPG result is still stored without it. Migration `20261014000000_epg_screenshot` adds `EpgResult.screenshotUrl`.
