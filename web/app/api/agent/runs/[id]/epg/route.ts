@@ -3,7 +3,7 @@ import { prisma } from "@/lib/db";
 import { checkAgentAuth, parseJson } from "@/lib/agent-route";
 import { loadWritableRun } from "@/lib/agent-run";
 import { channelCountDropCheck } from "@/lib/epg";
-import { getGlobalThresholds } from "@/lib/settings";
+import { getEffectiveThresholds } from "@/lib/settings";
 import { epgResultRequest } from "@/lib/schemas/agent";
 
 export const dynamic = "force-dynamic";
@@ -28,7 +28,7 @@ export async function POST(req: Request, ctx: { params: Promise<{ id: string }> 
     orderBy: { run: { startedAt: "desc" } },
     select: { metrics: true },
   });
-  const thresholds = await getGlobalThresholds();
+  const thresholds = await getEffectiveThresholds(run.countryCode);
   const drop = channelCountDropCheck(
     previous ? numberOf(previous.metrics, "epg.channel_count") : null,
     numberOf(epg.metrics, "epg.channel_count"),

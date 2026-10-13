@@ -81,7 +81,7 @@ Status: ⬜ todo · 🟨 in progress · ✅ done
 
 | # | Step | Status |
 |---|------|--------|
-| 5.1 | Threshold tuning on real data; per-country overrides | ⬜ |
+| 5.1 | Threshold tuning on real data; per-country overrides | 🟨 per-country overrides done (code); tuning on real data needs the deployed system and weeks of runs |
 | 5.2 | Retention cron; audit log | ⬜ |
 | 5.3 | Agent offline queue, update check, selector-health fail-fast | ⬜ |
 | 5.4 | Runbook finalized; handover | ⬜ |

@@ -1,7 +1,7 @@
 import { NextResponse } from "next/server";
 import { prisma } from "@/lib/db";
 import { checkAgentAuth, parseJson } from "@/lib/agent-route";
-import { getGlobalThresholds } from "@/lib/settings";
+import { getEffectiveThresholds } from "@/lib/settings";
 import { heartbeatRequest, type HeartbeatResponse } from "@/lib/schemas/agent";
 
 export const dynamic = "force-dynamic";
@@ -32,15 +32,15 @@ export async function POST(req: Request) {
     },
   });
 
-  const [active, poll, thresholds] = await Promise.all([
+  const [active, poll] = await Promise.all([
     prisma.setting.findUnique({ where: { key: "activeCountry" } }),
     prisma.setting.findUnique({ where: { key: "agent.pollIntervalSec" } }),
-    getGlobalThresholds(),
   ]);
 
   const activeCode = typeof active?.value === "string" ? active.value : null;
   const country = activeCode ? await prisma.country.findUnique({ where: { code: activeCode } }) : null;
 
+  const thresholds = await getEffectiveThresholds(activeCode); // global overrides, then the active country's own
   const sample = activeCode
     ? await prisma.channel.findMany({ where: { countryCode: activeCode, subtitleSample: true }, select: { id: true }, orderBy: { id: "asc" } })
     : [];

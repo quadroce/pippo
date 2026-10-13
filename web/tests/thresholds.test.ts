@@ -70,3 +70,25 @@ describe("lower-is-worse checks", () => {
     expect(parseThresholdInput("hours", "2", "6").ok).toBe(true);
   });
 });
+
+describe("layerThresholds (per-country overrides)", () => {
+  it("applies defaults, then global overrides, then the country's own", async () => {
+    const { layerThresholds } = await import("@/lib/thresholds");
+    const global = { "img.broken_ratio": { warn: 0.02, critical: 0.08 }, "player.ttff": { warn: 5000, critical: 12000 } };
+    const t = layerThresholds(global, [{ checkId: "player.ttff", warn: 8000, critical: null }]);
+    expect(t["player.ttff"]).toEqual({ warn: 8000, critical: null });          // the country replaces both levels
+    expect(t["img.broken_ratio"]).toEqual({ warn: 0.02, critical: 0.08 });     // untouched checks follow the global value
+    expect(t["player.stall_ratio"]).toEqual({ warn: 0.03, critical: 0.15 });   // and the defaults below that
+  });
+
+  it("drops unknown checks and invalid numbers, and leaves the global map alone", async () => {
+    const { layerThresholds, effectiveThresholds } = await import("@/lib/thresholds");
+    const t = layerThresholds(undefined, [
+      { checkId: "nope.check", warn: 1, critical: 2 },
+      { checkId: "player.ttff", warn: -5, critical: Number.NaN },
+    ]);
+    expect("nope.check" in t).toBe(false);
+    expect(t["player.ttff"]).toEqual({ warn: null, critical: null });
+    expect(effectiveThresholds(undefined)["player.ttff"]).toEqual({ warn: 4000, critical: 10000 });
+  });
+});

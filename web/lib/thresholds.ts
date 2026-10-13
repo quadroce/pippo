@@ -281,6 +281,21 @@ export function effectiveThresholds(stored: unknown): StoredThresholds {
   return out;
 }
 
+export type CountryOverrideRow = { checkId: string; warn: number | null; critical: number | null };
+
+/**
+ * Thresholds for one country: catalog defaults, then the global overrides, then that country's own
+ * overrides. A country override replaces both levels of the check (null disables a level), the same
+ * meaning as in the global form. Unknown check ids are dropped.
+ */
+export function layerThresholds(globalStored: unknown, countryRows: CountryOverrideRow[]): StoredThresholds {
+  const out = effectiveThresholds(globalStored);
+  for (const row of countryRows) {
+    if (row.checkId in out) out[row.checkId] = { warn: num(row.warn), critical: num(row.critical) };
+  }
+  return out;
+}
+
 function num(v: unknown): number | null {
   return typeof v === "number" && Number.isFinite(v) && v >= 0 ? v : null;
 }

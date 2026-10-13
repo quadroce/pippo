@@ -2,7 +2,7 @@ import Link from "next/link";
 import { prisma } from "@/lib/db";
 import { getActiveCountry } from "@/lib/queries";
 import { requireAdmin } from "@/lib/session";
-import { getGlobalThresholds, getStoredThresholds, SETTING_REPORT_RECIPIENTS } from "@/lib/settings";
+import { getEffectiveThresholds, getGlobalThresholds, getStoredThresholds, SETTING_REPORT_RECIPIENTS } from "@/lib/settings";
 import { CHECK_CATALOG, toDisplay, type Unit } from "@/lib/thresholds";
 import { resetThreshold, saveActiveCountry, saveRecipients, saveThreshold } from "./actions";
 import { SimpleForm, ThresholdRow } from "./forms";
@@ -11,9 +11,10 @@ export const dynamic = "force-dynamic";
 
 const UNIT_LABEL: Record<Unit, string> = { ratio: "%", seconds: "s", ms: "ms", hours: "h", count: "count" };
 
-export default async function SettingsPage() {
+export default async function SettingsPage({ searchParams }: { searchParams: Promise<{ scope?: string }> }) {
   await requireAdmin();
-  const [countries, active, effective, stored, recipientsSetting, audit] = await Promise.all([
+  const sp = await searchParams;
+  const [countries, active, globalEffective, stored, recipientsSetting, audit] = await Promise.all([
     prisma.country.findMany({ where: { active: true }, orderBy: { code: "asc" } }),
     getActiveCountry(),
     getGlobalThresholds(),
@@ -22,6 +23,13 @@ export default async function SettingsPage() {
     prisma.auditLog.findMany({ orderBy: { createdAt: "desc" }, take: 20 }),
   ]);
   const recipients = Array.isArray(recipientsSetting?.value) ? (recipientsSetting.value as string[]) : [];
+
+  // Threshold scope: "global" or one country. A country shows the layered values and which checks it overrides.
+  const scopeCode = sp.scope && countries.some((c) => c.code === sp.scope?.toUpperCase()) ? sp.scope.toUpperCase() : null;
+  const scope = scopeCode ?? "global";
+  const countryRows = scopeCode ? await prisma.thresholdOverride.findMany({ where: { countryCode: scopeCode } }) : [];
+  const effective = scopeCode ? await getEffectiveThresholds(scopeCode) : globalEffective;
+  const overridden = new Set(scopeCode ? countryRows.map((r) => r.checkId) : Object.keys(stored));
 
   return (
     <div className="space-y-10">
@@ -56,11 +64,24 @@ export default async function SettingsPage() {
       </section>
 
       <section aria-label="Thresholds" className="space-y-2">
-        <h2 className="text-lg font-medium">Thresholds (global)</h2>
+        <h2 className="text-lg font-medium">Thresholds ({scopeCode ? `${scopeCode} overrides` : "global"})</h2>
         <p className="text-sm text-neutral-600">
           A check fails at warning level above the first value and at critical level above the second. Leave a field empty to disable that
-          level. Per-country overrides come later.
+          level. A country override replaces both values of a check for that country only; everything else follows the global value. The agent
+          grades with the values of the active country.
         </p>
+        <nav aria-label="Threshold scope" className="flex flex-wrap gap-2 text-sm">
+          {[{ code: "global", label: "Global" }, ...countries.map((c) => ({ code: c.code, label: c.code }))].map((s) => (
+            <Link
+              key={s.code}
+              href={s.code === "global" ? "/settings" : `/settings?scope=${s.code}`}
+              aria-current={s.code === scope ? "page" : undefined}
+              className={`rounded border px-2 py-1 ${s.code === scope ? "border-black bg-black text-white" : "border-neutral-300"}`}
+            >
+              {s.label}
+            </Link>
+          ))}
+        </nav>
         <table className="w-full text-left text-sm">
           <tbody>
             {CHECK_CATALOG.map((c) => {
@@ -68,14 +89,15 @@ export default async function SettingsPage() {
               const d = c.defaults;
               return (
                 <ThresholdRow
-                  key={c.id}
+                  key={`${scope}:${c.id}`}
                   checkId={c.id}
                   name={c.name}
                   description={c.description}
                   unitLabel={UNIT_LABEL[c.unit]}
                   warn={toDisplay(c.unit, e.warn)}
                   critical={toDisplay(c.unit, e.critical)}
-                  isDefault={!(c.id in stored)}
+                  scope={scope}
+                  isDefault={!overridden.has(c.id)}
                   defaultText={`warning ${toDisplay(c.unit, d.warn) || "off"}, critical ${toDisplay(c.unit, d.critical) || "off"} ${UNIT_LABEL[c.unit]}`}
                   save={saveThreshold}
                   reset={resetThreshold}
