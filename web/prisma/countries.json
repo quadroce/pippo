@@ -1,4 +1,4 @@
-﻿[
+[
   { "code": "IT", "name": "Italy", "entryUrl": "https://pluto.tv/it/", "timezone": "Europe/Rome", "language": "it" },
   { "code": "GB", "name": "United Kingdom", "entryUrl": "https://pluto.tv/gb", "timezone": "Europe/London", "language": "en" },
   { "code": "DE", "name": "Germany", "entryUrl": "https://pluto.tv/de", "timezone": "Europe/Berlin", "language": "de" },
