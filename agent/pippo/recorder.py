@@ -294,6 +294,7 @@ def record_channel(
     shots_dir: Path | None = None,
     subtitles: SubtitleConfig | None = None,
     capture_audio: bool = False,
+    required_selectors: dict[str, str] | None = None,
 ) -> dict:
     """Open a channel page and record `window_sec` seconds of playback. Returns the raw buffer."""
     page.add_init_script(INIT_SCRIPT)
@@ -342,6 +343,11 @@ def record_channel(
             buffer["subCues"] = page.evaluate("window.__pippoSubCues ? window.__pippoSubCues() : []")
         except Exception as e:
             log.debug("could not read subtitle cues: %s", e)
+    missing: list[str] = []
+    if required_selectors and not nav_error:
+        from pippo.health import missing_on_page
+
+        missing = missing_on_page(page, required_selectors)
     final_url = urlparse(page.url).path  # path only: query strings may carry tokens
     ui_title, ui_title_at = None, None
     if not nav_error:
@@ -351,6 +357,7 @@ def record_channel(
             log.debug("could not read the channel title: %s", e)
     return {
         "finalPath": final_url,
+        "missingSelectors": missing,
         "subtitleInfo": sub_info,
         "pcm": pcm,
         "uiTitle": ui_title,

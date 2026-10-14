@@ -47,6 +47,19 @@ describe("auth", () => {
   });
 });
 
+describe("heartbeat update announcement", () => {
+  it("returns the announced agent version", async () => {
+    db.setting.findUnique.mockImplementation(async ({ where }: { where: { key: string } }) =>
+      where.key === "activeCountry" ? { value: "IT" } : where.key === "agent.latestVersion" ? { value: "0.3.0" } : null,
+    );
+    db.country.findUnique.mockResolvedValue({ code: "IT", runHour: "06:00", timezone: "Europe/Rome" });
+    db.channel.findMany.mockResolvedValue([]);
+    db.thresholdOverride.findMany.mockResolvedValue([]);
+    const res = await heartbeat(json("heartbeat", { agentVersion: "0.1.0" }));
+    expect((await res.json()).latestAgentVersion).toBe("0.3.0");
+  });
+});
+
 describe("heartbeat", () => {
   it("stores the heartbeat and returns the active country", async () => {
     db.setting.findUnique.mockImplementation(async ({ where }: { where: { key: string } }) =>
@@ -65,6 +78,7 @@ describe("heartbeat", () => {
     });
     expect(body.thresholds["img.broken_ratio"]).toEqual({ warn: 0.01, critical: 0.05 }); // defaults when nothing is stored
     expect(body.subtitleSample).toEqual(["it-cnn", "it-rally"]);
+    expect(body.latestAgentVersion).toBeNull();                                  // nothing announced by default
     expect(body.thresholds["player.ttff"]).toEqual({ warn: 6000, critical: 20000 }); // the active country overrides the default
     expect(db.thresholdOverride.findMany.mock.calls[0][0].where).toEqual({ countryCode: "IT" });
     expect(db.channel.findMany.mock.calls[0][0].where).toEqual({ countryCode: "IT", subtitleSample: true });

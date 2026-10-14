@@ -4,6 +4,7 @@ import { revalidatePath } from "next/cache";
 import { prisma } from "@/lib/db";
 import { requireAdmin } from "@/lib/session";
 import { audit, getStoredThresholds, SETTING_REPORT_RECIPIENTS, SETTING_THRESHOLDS } from "@/lib/settings";
+import { parseLatestVersionInput, SETTING_LATEST_AGENT_VERSION } from "@/lib/agent-version";
 import { parseRetentionInput } from "@/lib/retention";
 import { runCleanup, SETTING_RETENTION } from "@/lib/retention-data";
 import { CHECK_CATALOG, parseEmails, parseThresholdInput } from "@/lib/thresholds";
@@ -131,5 +132,20 @@ export async function runCleanupNow(): Promise<FormState> {
   const done = `Deleted ${r.runs} run(s), ${r.screenshots} screenshot(s), ${r.rawBuffers} raw buffer(s), ${r.epgScreenshots} guide picture(s).`;
   if (r.blobFailures) return { ok: false, message: `${done} The file store refused some deletions: the rows were kept and the next run retries them.` };
   return { ok: true, message: r.partial ? `${done} More is waiting: run it again.` : done };
+}
+
+export async function saveLatestAgentVersion(_prev: FormState, formData: FormData): Promise<FormState> {
+  const admin = await requireAdmin();
+  const parsed = parseLatestVersionInput(String(formData.get("version") ?? ""));
+  if (!parsed.ok) return { ok: false, message: parsed.error };
+  await prisma.setting.upsert({
+    where: { key: SETTING_LATEST_AGENT_VERSION },
+    update: { value: parsed.value as unknown as object },
+    create: { key: SETTING_LATEST_AGENT_VERSION, value: parsed.value as unknown as object },
+  });
+  await audit(admin.id, "agent.latestVersion", { to: parsed.value });
+  revalidatePath("/settings");
+  revalidatePath("/");
+  return { ok: true, message: parsed.value ? `Agents older than ${parsed.value} will say so in their log and on the Overview.` : "No version announced." };
 }
 

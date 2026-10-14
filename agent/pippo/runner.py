@@ -13,6 +13,8 @@ from typing import Callable
 from pippo import __version__
 from pippo.api_client import ApiClient, ApiError
 from pippo.config import AGENT_DIR, Settings
+from pippo.health import SelectorHealthError
+from pippo.outbox import Outbox, flush, is_permanent
 from pippo.images_run import Measurement
 from pippo.players_run import ChannelOutcome
 from pippo.probes.epg_render import now_playing_check
@@ -84,6 +86,7 @@ def execute_run(
     reports_dir: Path | None = None,
     measure_players: PlayerMeasure | None = None,
     job_id: str | None = None,
+    outbox: Outbox | None = None,
 ) -> dict:
     """Run end to end. Returns {runId, counts, saved, failedUploads}. Raises RunBlocked on a country mismatch.
 
@@ -108,6 +111,10 @@ def execute_run(
 
     try:
         m = measure()
+    except SelectorHealthError as e:
+        log.error("%s", e)
+        _safe_finish(api, run_id, "failed", str(e), reason="selector_health")
+        raise
     except BaseException as e:
         log.exception("measurement failed")
         _safe_finish(api, run_id, "failed", f"measurement failed: {e}")
@@ -117,11 +124,14 @@ def execute_run(
     log.info("measurement saved to %s", saved)
 
     failed: list[str] = []
+    queued: set[str] = set()   # failures that were kept in the outbox (the permanent ones are not)
     lock = threading.Lock()
+    queue = outbox or Outbox()
 
     def upload_channel(outcome: ChannelOutcome) -> None:
         ch = outcome.channel
         logo = m.channel_results.get(ch.slug, {"metrics": {}, "checks": []})
+        payload: dict = {}
         try:
             shots, raw_url = _upload_files(api, run_id, outcome)
             extra_checks = []
@@ -141,6 +151,10 @@ def execute_run(
             api.upload_channel(run_id, payload)
         except ApiError as e:
             log.error("upload of %s failed: %s", ch.slug, e)
+            if not is_permanent(e):
+                # Keep the result: it cost a minute of browser time, and the web app may be back shortly.
+                queue.add(run_id, ch.slug, payload, outcome.screenshots, str(outcome.raw_path) if outcome.raw_path else None)
+                queued.add(ch.slug)
             with lock:
                 failed.append(f"{ch.slug}: {e}")
 
@@ -161,7 +175,15 @@ def execute_run(
             for ch in m.channels:
                 upload_channel(ChannelOutcome(ch))
         else:
-            measure_players(m.channels, upload_channel)
+            summary = measure_players(m.channels, upload_channel)
+            aborted = getattr(summary, "aborted", None)
+            if aborted:
+                msg = f"Selector health failed: {aborted}. Run `python -m pippo discover` and update pluto_profile.yaml."
+                log.error("%s", msg)
+                _safe_finish(api, run_id, "failed", msg, reason="selector_health")
+                raise SelectorHealthError("channel page", ["see run log"]) from None
+    except SelectorHealthError:
+        raise  # already reported: the run was closed with its reason just above
     except ApiError as e:
         log.error("upload failed: %s (results kept in %s)", e, saved)
         _safe_finish(api, run_id, "failed", f"upload failed: {e}")
@@ -171,13 +193,22 @@ def execute_run(
         _safe_finish(api, run_id, "failed", f"player measurement failed: {e}")
         raise
 
+    if failed:  # one more try for this run now, while the run is still open
+        retry = flush(api, queue, run_id=run_id)
+        if retry.sent:
+            log.info("outbox: %d result(s) sent on the last try", retry.sent)
+        still = {p[1]["slug"] for p in queue.pending(run_id)}
+        failed = [f for f in failed if f.split(":", 1)[0] not in queued or f.split(":", 1)[0] in still]
     entries = [{"level": "error", "msg": f"channel upload failed: {f}"[:500]} for f in failed[:50]]
     done = api.finish_run(run_id, {"status": "completed", **({"log": entries} if entries else {})})
     return {"runId": run_id, "counts": done.get("counts", {}), "saved": str(saved), "failedUploads": failed}
 
 
-def _safe_finish(api: ApiClient, run_id: str, status: str, msg: str) -> None:
+def _safe_finish(api: ApiClient, run_id: str, status: str, msg: str, reason: str | None = None) -> None:
     try:
-        api.finish_run(run_id, {"status": status, "log": [{"level": "error", "msg": msg[:500]}]})
+        payload: dict = {"status": status, "log": [{"level": "error", "msg": msg[:500]}]}
+        if reason:
+            payload["reason"] = reason
+        api.finish_run(run_id, payload)
     except Exception as e:
         log.warning("could not close run %s: %s", run_id, e)

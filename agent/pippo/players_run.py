@@ -22,6 +22,7 @@ from playwright.sync_api import sync_playwright
 from pippo.browser import open_context
 from pippo.config import AGENT_DIR
 from pippo.guide import GuideChannel
+from pippo.health import channel_selectors, consecutive_failures_abort
 from pippo.probes.player import measure_buffer
 from pippo.profile import Profile
 from pippo.probes.subtitle_sync import Transcriber, measure_sync
@@ -64,6 +65,7 @@ class ChannelOutcome:
     error: str | None = None
     ui_title: str | None = None       # programme title shown on the channel page
     ui_title_at: int | None = None    # epoch ms when it was read
+    selectors_missing: list[str] = field(default_factory=list)  # required page elements that were not there
 
 
 def numeric_id(channel: GuideChannel) -> str | None:
@@ -82,7 +84,7 @@ def _measure_one(
     page = ctx.new_page()
     try:
         capture = bool(sync and ch.slug in sync.slugs)
-        rec = record_channel(page, url, window_sec, ch_dir, subtitles=subtitle_config_from_profile(profile.data), capture_audio=capture)
+        rec = record_channel(page, url, window_sec, ch_dir, subtitles=subtitle_config_from_profile(profile.data), capture_audio=capture, required_selectors=channel_selectors(profile.data))
     finally:
         try:
             page.close()
@@ -107,7 +109,12 @@ def _measure_one(
     raw = ch_dir / "raw-buffer.json"
     raw.write_text(json.dumps({k: rec[k] for k in ("windowSec", "navError", "buffer", "network")}, default=str), encoding="utf-8")
     (ch_dir / "result.json").write_text(json.dumps(result, indent=1, default=str), encoding="utf-8")
-    return ChannelOutcome(ch, result["metrics"], result["checks"], rec["screenshots"], raw, None, rec.get("uiTitle"), rec.get("uiTitleAt"))
+    return ChannelOutcome(ch, result["metrics"], result["checks"], rec["screenshots"], raw, None, rec.get("uiTitle"), rec.get("uiTitleAt"), rec.get("missingSelectors") or [])
+
+
+@dataclass
+class PoolSummary:
+    aborted: str | None = None   # why the remaining channels were skipped, if they were
 
 
 def measure_players(
@@ -125,7 +132,7 @@ def measure_players(
     playwright_factory: Callable = sync_playwright,
     measure_one: Callable = _measure_one,
     sync: SyncPlan | None = None,
-) -> None:
+) -> PoolSummary:
     """Measure every channel; call `on_result` (from worker threads) as each one finishes."""
     profile = profile or Profile.load()
     out_dir = out_dir or AGENT_DIR / "reports" / "channels"
@@ -134,13 +141,17 @@ def measure_players(
         todo.put(ch)
     workers = max(1, min(parallelism, len(channels)))
     done = threading.Semaphore(0)
+    summary = PoolSummary()
+    abort = threading.Event()
+    flags: list[bool] = []
+    flags_lock = threading.Lock()
 
     def worker(k: int) -> None:
         try:
             with playwright_factory() as p:
                 ctx = open_ctx(p, f"{country}-w{k}", headless)
                 try:
-                    while True:
+                    while not abort.is_set():
                         try:
                             ch = todo.get_nowait()
                         except queue.Empty:
@@ -152,6 +163,15 @@ def measure_players(
                             log.warning("worker %d: %s failed: %s", k, ch.slug, str(e).splitlines()[0])
                             outcome = ChannelOutcome(ch, error=f"measurement crashed: {str(e).splitlines()[0][:300]}")
                             ctx = _revive(p, ctx, open_ctx, country, k, headless)
+                        with flags_lock:
+                            flags.append(bool(outcome.selectors_missing))
+                            if not abort.is_set() and consecutive_failures_abort(flags):
+                                labels = sorted({s for o in [outcome] for s in o.selectors_missing})
+                                summary.aborted = (
+                                    f"the first {len(flags[:3])} channels all lacked {', '.join(labels)}: the channel page layout "
+                                    "probably changed, so the remaining channels were not measured"
+                                )
+                                abort.set()
                         try:
                             on_result(outcome)
                         except Exception:
@@ -171,6 +191,8 @@ def measure_players(
         t.start()
     for _ in threads:
         done.acquire()
+    if abort.is_set():
+        return summary
     # Channels left in the queue mean every worker died: report them as errors instead of losing them.
     while True:
         try:
@@ -178,6 +200,7 @@ def measure_players(
         except queue.Empty:
             break
         on_result(ChannelOutcome(ch, error="not measured: all browser workers stopped"))
+    return summary
 
 
 def _revive(p, ctx, open_ctx, country: str, k: int, headless: bool):
@@ -218,14 +241,14 @@ def player_measure_for(
             transcriber = WhisperTranscriber()
         sync = SyncPlan(set(sync_slugs), transcriber)
 
-    def run(channels: list[GuideChannel], on_result: Callable[[ChannelOutcome], None]) -> None:
+    def run(channels: list[GuideChannel], on_result: Callable[[ChannelOutcome], None]) -> PoolSummary | None:
         chosen = channels[:limit] if limit else channels
         if only_slugs is not None:
             chosen = [c for c in chosen if c.slug in only_slugs]
             for slug in sorted(only_slugs - {c.slug for c in channels}):
                 on_result(ChannelOutcome(GuideChannel(slug, slug, None, None, None), error="channel not found in the current guide"))
         log.info("measuring %d channels, %d at a time, %ds each", len(chosen), settings.parallelism, window)
-        measure_players(
+        return measure_players(
             country,
             chosen,
             on_result,

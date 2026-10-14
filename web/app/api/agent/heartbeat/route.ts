@@ -32,9 +32,10 @@ export async function POST(req: Request) {
     },
   });
 
-  const [active, poll] = await Promise.all([
+  const [active, poll, latest] = await Promise.all([
     prisma.setting.findUnique({ where: { key: "activeCountry" } }),
     prisma.setting.findUnique({ where: { key: "agent.pollIntervalSec" } }),
+    prisma.setting.findUnique({ where: { key: "agent.latestVersion" } }),
   ]);
 
   const activeCode = typeof active?.value === "string" ? active.value : null;
@@ -50,6 +51,7 @@ export async function POST(req: Request) {
     schedule: country ? { countryCode: country.code, runHour: country.runHour, timezone: country.timezone } : null,
     thresholds,
     subtitleSample: sample.map((c) => c.id),
+    latestAgentVersion: typeof latest?.value === "string" ? latest.value : null,
     pollIntervalSec: typeof poll?.value === "number" ? poll.value : DEFAULT_POLL_SEC,
   };
   return NextResponse.json(res);

@@ -10,6 +10,8 @@ from pippo.api_client import ApiClient, ApiError
 from pippo.config import Settings
 from pippo.precheck import PrecheckResult, compare_countries, detect_ip_country
 from pippo.jobs import JobPoller, slugs_from_channel_ids
+from pippo.outbox import Outbox, flush
+from pippo.updates import announce_once
 from pippo.scheduler import DailyScheduler, RunGate, parse_schedule
 from pippo.thresholds import Threshold, parse_thresholds
 
@@ -36,6 +38,7 @@ def heartbeat_once(settings: Settings, client: ApiClient) -> tuple[PrecheckResul
     )
     result = compare_countries(reply.get("activeCountry"), detected)
     log.info("pre-check: %s", result.detail)
+    announce_once(reply)
     return result, reply
 
 
@@ -135,6 +138,25 @@ def run_job(settings: Settings, job: dict) -> None:
         api.close()
 
 
+def _flush_outbox(client: ApiClient) -> None:
+    """The web app answered a heartbeat, so it is reachable: send results that were waiting for it."""
+    outbox = Outbox()
+    if outbox.count() == 0 or gate_busy_hint():
+        return
+    try:
+        r = flush(client, outbox)
+    except Exception:
+        log.exception("could not flush the outbox")
+        return
+    if r.sent or r.rejected or r.dropped:
+        log.info("outbox: %d sent, %d still waiting, %d rejected, %d dropped as too old", r.sent, r.kept, r.rejected, r.dropped)
+
+
+def gate_busy_hint() -> bool:
+    """Placeholder seam for tests: flushing is cheap and safe next to a run, so it is never skipped."""
+    return False
+
+
 def serve(settings: Settings) -> None:
     """Heartbeat loop, the daily scheduler and the on-demand job poller (they share one run gate)."""
     client = ApiClient(settings)
@@ -149,6 +171,7 @@ def serve(settings: Settings) -> None:
                 _, reply = heartbeat_once(settings, client)
                 if scheduler.apply(parse_schedule(reply)):
                     log.info("next scheduled run: %s", scheduler.next_run)
+                _flush_outbox(client)
             except ApiError as e:
                 log.error("heartbeat failed: %s", e)
             time.sleep(settings.heartbeat_interval_sec)

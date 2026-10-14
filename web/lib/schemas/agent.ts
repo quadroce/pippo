@@ -29,6 +29,8 @@ export const heartbeatResponse = z.object({
   thresholds: z.record(z.string(), z.object({ warn: z.number().nullable(), critical: z.number().nullable() })),
   // Channel ids ("<cc>-<slug>") of the active country flagged as subtitle sample: the agent measures sync on these only.
   subtitleSample: z.array(z.string()),
+  // The agent version the operator wants running (Settings); the agent only reports when it is older.
+  latestAgentVersion: z.string().nullable(),
 });
 export type HeartbeatResponse = z.infer<typeof heartbeatResponse>;
 
@@ -122,5 +124,7 @@ export type EpgResultRequest = z.infer<typeof epgResultRequest>;
 
 export const finishRunRequest = z.object({
   status: z.enum(["completed", "failed"]).default("completed"),
+  // Why a run failed when it is not an ordinary error; "selector_health" triggers the operational notice.
+  reason: z.enum(["selector_health"]).optional(),
   log: z.array(z.object({ level: z.string(), msg: z.string().max(500) })).max(200).optional(),
 });

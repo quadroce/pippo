@@ -2,6 +2,7 @@ import Link from "next/link";
 import { prisma } from "@/lib/db";
 import { asImagesSummary, getActiveCountry, latestCompletedRun, statusCountsForRun } from "@/lib/queries";
 import { worstStatus, type ResultStatus } from "@/lib/results";
+import { isOlder, SETTING_LATEST_AGENT_VERSION } from "@/lib/agent-version";
 import { StatusBadge } from "./status-badge";
 
 export const dynamic = "force-dynamic";
@@ -22,6 +23,8 @@ export default async function Overview() {
     }),
   );
 
+  const latestRow = await prisma.setting.findUnique({ where: { key: SETTING_LATEST_AGENT_VERSION } });
+  const latestVersion = typeof latestRow?.value === "string" ? latestRow.value : null;
   const heartbeatAgeMin = agent ? Math.round((Date.now() - agent.lastHeartbeatAt.getTime()) / 60000) : null;
   const online = heartbeatAgeMin !== null && heartbeatAgeMin < 5;
 
@@ -35,6 +38,7 @@ export default async function Overview() {
           <p>
             {online ? "Online" : "Offline"} — last heartbeat {heartbeatAgeMin} min ago, detected country{" "}
             {agent.detectedCountry ?? "unknown"}, version {agent.currentVersion ?? "?"}. Active country: {active ?? "not set"}.
+            {isOlder(agent.currentVersion, latestVersion) ? ` Update available: ${latestVersion} (this agent runs ${agent.currentVersion}).` : ""}
           </p>
         ) : (
           <p>No heartbeat received yet. Start the agent and check its API key.</p>
