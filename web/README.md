@@ -1,4 +1,4 @@
-﻿# Pippo — Web app
+# Pippo — Web app
 
 Next.js 15 dashboard (App Router, TypeScript, Tailwind, Prisma) deployed on Vercel.
 
