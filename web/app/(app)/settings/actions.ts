@@ -4,6 +4,8 @@ import { revalidatePath } from "next/cache";
 import { prisma } from "@/lib/db";
 import { requireAdmin } from "@/lib/session";
 import { audit, getStoredThresholds, SETTING_REPORT_RECIPIENTS, SETTING_THRESHOLDS } from "@/lib/settings";
+import { parseRetentionInput } from "@/lib/retention";
+import { runCleanup, SETTING_RETENTION } from "@/lib/retention-data";
 import { CHECK_CATALOG, parseEmails, parseThresholdInput } from "@/lib/thresholds";
 
 export type FormState = { ok: boolean; message: string } | null;
@@ -106,3 +108,28 @@ export async function saveRecipients(_prev: FormState, formData: FormData): Prom
   revalidatePath("/settings");
   return { ok: true, message: parsed.emails.length ? `Saved ${parsed.emails.length} recipient(s).` : "No recipients: the report falls back to ADMIN_EMAIL." };
 }
+
+export async function saveRetention(_prev: FormState, formData: FormData): Promise<FormState> {
+  const admin = await requireAdmin();
+  const parsed = parseRetentionInput(String(formData.get("screenshotDays") ?? ""), String(formData.get("metricsDays") ?? ""));
+  if (!parsed.ok) return { ok: false, message: parsed.error };
+  await prisma.setting.upsert({
+    where: { key: SETTING_RETENTION },
+    update: { value: parsed.value },
+    create: { key: SETTING_RETENTION, value: parsed.value },
+  });
+  await audit(admin.id, "retention.update", parsed.value);
+  revalidatePath("/settings");
+  return { ok: true, message: `Saved: screenshots ${parsed.value.screenshotDays} days, metrics ${parsed.value.metricsDays} days. The daily cleanup applies it.` };
+}
+
+export async function runCleanupNow(): Promise<FormState> {
+  const admin = await requireAdmin();
+  const r = await runCleanup();
+  await audit(admin.id, "retention.runNow", { runs: r.runs, screenshots: r.screenshots, blobFailures: r.blobFailures });
+  revalidatePath("/settings");
+  const done = `Deleted ${r.runs} run(s), ${r.screenshots} screenshot(s), ${r.rawBuffers} raw buffer(s), ${r.epgScreenshots} guide picture(s).`;
+  if (r.blobFailures) return { ok: false, message: `${done} The file store refused some deletions: the rows were kept and the next run retries them.` };
+  return { ok: true, message: r.partial ? `${done} More is waiting: run it again.` : done };
+}
+

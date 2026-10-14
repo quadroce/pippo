@@ -157,3 +157,21 @@ The thresholds section of Settings has a scope selector: **Global** or one count
 - The heartbeat returns the effective thresholds of the **active** country, so the agent grades a run with them. The server-evaluated `epg.channel_count_drop` uses the run's own country. If an on-demand job targets a country other than the active one, the agent still grades with the active country's values until the active country is switched (the pre-check already forces the VPN and the selection to agree for real runs).
 - Typical uses seen in the data so far: a looser `sub.sync_offset` for countries whose channels are live-captioned news, a looser `epg.language_mismatch` where many shows are foreign, a looser `player.ttff` once real numbers at production parallelism exist.
 - **Tuning on real data** (the other half of this roadmap item) cannot be done yet: it needs weeks of runs from the deployed system.
+
+## Retention, cron jobs and operational notices (step 5.2)
+
+`web/vercel.json` schedules two Vercel Cron jobs. Both endpoints answer only to `Authorization: Bearer $CRON_SECRET` (Vercel sends it when the variable is set; no secret configured gives 503, a wrong one 401).
+
+| Schedule (UTC) | Endpoint | What it does |
+|----------------|----------|--------------|
+| daily 02:30 | `/api/cron/cleanup` | retention cleanup (below) |
+| daily 09:00 | `/api/cron/health` | "no run today" and "agent offline" notices |
+
+**Retention** (Settings → Data retention, default 30 days for evidence and 90 for metrics; screenshots cannot outlive metrics). `lib/retention-data.ts` works in bounded batches so a serverless call never times out and resumes next time: screenshots, raw event buffers and guide pictures older than the screenshot retention (**the file is deleted first, then its row; if the file store refuses, the rows are kept and retried, so nothing is orphaned**); whole runs older than the metrics retention together with any file they still hold (results, checks, alerts and EPG results cascade); finished or expired jobs without a run; expired sessions and sign-in tokens; stale pending jobs are expired. Without a Blob token (local development) file deletion is skipped and the rows go. "Run cleanup now" in Settings does the same on demand and shows the last result; if it stopped at the batch limit it says so and can simply be run again.
+
+**Health notices** (`lib/retention.ts` `healthVerdict`, wording in `lib/notices.ts`), evaluated in the active country's own timezone and sent to the report recipients at most once per country and local day:
+- **No scheduled run today**: three hours after the country's scheduled time nothing has started (a failed or blocked run counts as having started: it has its own notice).
+- **Agent offline**: inside the window from the scheduled time to three hours later, no run yet and no heartbeat for more than two hours. A PC that is simply off at night does not trigger it.
+- A notice that could not be emailed is not marked as sent, so the next check retries it.
+
+**Hobby plan note**: Vercel Hobby only allows daily crons, hence the single daily health check at 09:00 UTC; it covers a 06:00 run in Europe, while for a country whose scheduled time is later the day's miss is noticed the following morning. On a plan with hourly crons point the health schedule at `0 * * * *` for earlier notices. The audit log needs no retention job: it is small and shows the last 20 entries.

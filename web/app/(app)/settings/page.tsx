@@ -4,7 +4,8 @@ import { getActiveCountry } from "@/lib/queries";
 import { requireAdmin } from "@/lib/session";
 import { getEffectiveThresholds, getGlobalThresholds, getStoredThresholds, SETTING_REPORT_RECIPIENTS } from "@/lib/settings";
 import { CHECK_CATALOG, toDisplay, type Unit } from "@/lib/thresholds";
-import { resetThreshold, saveActiveCountry, saveRecipients, saveThreshold } from "./actions";
+import { getRetention, SETTING_RETENTION_LAST, type CleanupResult } from "@/lib/retention-data";
+import { resetThreshold, runCleanupNow, saveActiveCountry, saveRecipients, saveRetention, saveThreshold } from "./actions";
 import { SimpleForm, ThresholdRow } from "./forms";
 
 export const dynamic = "force-dynamic";
@@ -23,6 +24,8 @@ export default async function SettingsPage({ searchParams }: { searchParams: Pro
     prisma.auditLog.findMany({ orderBy: { createdAt: "desc" }, take: 20 }),
   ]);
   const recipients = Array.isArray(recipientsSetting?.value) ? (recipientsSetting.value as string[]) : [];
+  const [retention, lastCleanupRow] = await Promise.all([getRetention(), prisma.setting.findUnique({ where: { key: SETTING_RETENTION_LAST } })]);
+  const lastCleanup = lastCleanupRow?.value && typeof lastCleanupRow.value === "object" ? (lastCleanupRow.value as unknown as CleanupResult) : null;
 
   // Threshold scope: "global" or one country. A country shows the layered values and which checks it overrides.
   const scopeCode = sp.scope && countries.some((c) => c.code === sp.scope?.toUpperCase()) ? sp.scope.toUpperCase() : null;
@@ -120,6 +123,35 @@ export default async function SettingsPage({ searchParams }: { searchParams: Pro
             className="w-full max-w-md rounded border border-neutral-300 px-2 py-1 text-sm"
           />
         </SimpleForm>
+      </section>
+
+      <section aria-label="Data retention" className="space-y-2">
+        <h2 className="text-lg font-medium">Data retention</h2>
+        <p className="text-sm text-neutral-600">
+          Screenshots, raw event buffers and guide pictures are deleted after the first number of days; whole runs with their results, checks and alerts
+          after the second. A daily job applies this; screenshots cannot be kept longer than metrics.
+        </p>
+        <SimpleForm action={saveRetention} button="Save">
+          <div className="flex flex-wrap gap-4 text-sm">
+            <label>
+              Screenshots (days){" "}
+              <input name="screenshotDays" defaultValue={retention.screenshotDays} inputMode="numeric" className="w-20 rounded border border-neutral-300 px-2 py-1" />
+            </label>
+            <label>
+              Metrics (days){" "}
+              <input name="metricsDays" defaultValue={retention.metricsDays} inputMode="numeric" className="w-20 rounded border border-neutral-300 px-2 py-1" />
+            </label>
+          </div>
+        </SimpleForm>
+        <div className="space-y-1 pt-2">
+          <SimpleForm action={runCleanupNow} button="Run cleanup now">
+            <p className="text-sm text-neutral-600">
+              {lastCleanup
+                ? `Last cleanup ${lastCleanup.at.slice(0, 16).replace("T", " ")} UTC: ${lastCleanup.runs} run(s), ${lastCleanup.screenshots} screenshot(s), ${lastCleanup.rawBuffers} raw buffer(s), ${lastCleanup.epgScreenshots} guide picture(s) deleted${lastCleanup.blobFailures ? `, ${lastCleanup.blobFailures} file store refusal(s) to retry` : ""}${lastCleanup.partial ? ", more waiting" : ""}.`
+                : "The cleanup has not run yet."}
+            </p>
+          </SimpleForm>
+        </div>
       </section>
 
       <section aria-label="Audit log" className="space-y-2">
