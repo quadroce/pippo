@@ -18,6 +18,12 @@ export async function POST(req: Request) {
   const denied = checkAgentAuth(req);
   if (denied) return denied;
 
+  // Without a Blob store (local development) evidence cannot be kept. 501 is not retried by the agent, so it
+  // reports the missing store once per file and carries on instead of waiting through its backoff.
+  if (!process.env.BLOB_READ_WRITE_TOKEN) {
+    return NextResponse.json({ error: "blob storage is not configured (BLOB_READ_WRITE_TOKEN)" }, { status: 501 });
+  }
+
   const q = uploadQuery.safeParse(Object.fromEntries(new URL(req.url).searchParams));
   if (!q.success) {
     return NextResponse.json({ error: "invalid request", issues: q.error.issues }, { status: 400 });

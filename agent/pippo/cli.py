@@ -4,7 +4,19 @@ import argparse
 import logging
 
 from pippo import __version__
-from pippo.config import load_settings, validate_settings
+from dataclasses import replace
+
+from pippo.config import Settings, load_settings, validate_settings
+
+
+def with_overrides(settings: Settings, parallelism: int | None, window: int | None) -> Settings:
+    """Command-line values for one run, without touching config.yaml. Non-positive values are ignored."""
+    changes = {}
+    if parallelism and parallelism > 0:
+        changes["parallelism"] = parallelism
+    if window and window > 0:
+        changes["observation_window_sec"] = window
+    return replace(settings, **changes) if changes else settings
 
 
 def main(argv: list[str] | None = None) -> int:
@@ -33,9 +45,13 @@ def main(argv: list[str] | None = None) -> int:
     run.add_argument("--trigger", choices=["scheduled", "on_demand"], default="on_demand")
     run.add_argument("--no-player", action="store_true", help="images and logos only, skip the player measurements")
     run.add_argument("--limit", type=int, help="measure only the first N channels (for testing)")
+    run.add_argument("--parallelism", type=int, help="browsers measuring channels at the same time (default: config.yaml)")
+    run.add_argument("--window", type=int, help="observation window per channel in seconds (default: config.yaml)")
     args = parser.parse_args(argv)
 
     settings = load_settings()
+    if args.command == "run":
+        settings = with_overrides(settings, args.parallelism, args.window)
     logging.basicConfig(level=settings.log_level, format="%(asctime)s %(levelname)s %(name)s: %(message)s")
 
     if args.command == "doctor":

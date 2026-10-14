@@ -101,6 +101,10 @@ describe("runs", () => {
 });
 
 describe("upload", () => {
+  beforeEach(() => {
+    process.env.BLOB_READ_WRITE_TOKEN = "blob-token";
+  });
+
   const runId = "11111111-1111-4111-8111-111111111111";
   const req = (qs: string, type = "image/png", bytes = 10) =>
     new Request(`${url("upload")}?${qs}`, {
@@ -115,6 +119,14 @@ describe("upload", () => {
     const res = await upload(req(`runId=${runId}&kind=screenshot&name=a.png`));
     expect(res.status).toBe(201);
     expect(put.mock.calls[0][2].access).toBe("private");
+  });
+
+  it("answers 501, which the agent does not retry, when no Blob store is configured", async () => {
+    delete process.env.BLOB_READ_WRITE_TOKEN;
+    const res = await upload(req(`runId=${runId}&kind=screenshot&name=a.png`));
+    expect(res.status).toBe(501);
+    expect((await res.json()).error).toContain("BLOB_READ_WRITE_TOKEN");
+    expect(put).not.toHaveBeenCalled();
   });
 
   it("rejects bad content type, bad name and unknown run", async () => {
