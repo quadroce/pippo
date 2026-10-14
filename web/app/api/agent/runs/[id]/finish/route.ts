@@ -4,6 +4,7 @@ import { checkAgentAuth, parseJson } from "@/lib/agent-route";
 import { loadWritableRun } from "@/lib/agent-run";
 import { countStatuses, type ResultStatus } from "@/lib/results";
 import { finalizeAlerts } from "@/lib/alerts-data";
+import { sendSelectorHealthNotice } from "@/lib/notices";
 import { sendDailyReport } from "@/lib/report-data";
 import { finishRunRequest } from "@/lib/schemas/agent";
 
@@ -33,6 +34,11 @@ export async function POST(req: Request, ctx: { params: Promise<{ id: string }> 
     } catch (e) {
       console.error("finalizing alerts failed", e);
     }
+  }
+
+  if (run.status === "failed" && body.data.reason === "selector_health") {
+    const msg = body.data.log?.[0]?.msg ?? "selectors missing";
+    await sendSelectorHealthNotice({ runId: run.id, country: run.countryCode, message: msg });
   }
 
   // An on-demand run closes its job (the run status tells whether it succeeded).

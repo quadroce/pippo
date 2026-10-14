@@ -13,7 +13,7 @@ export async function POST(req: Request, ctx: { params: Promise<{ id: string }> 
   const denied = checkAgentAuth(req);
   if (denied) return denied;
   const { id } = await ctx.params;
-  const loaded = await loadWritableRun(id);
+  const loaded = await loadWritableRun(id, { allowClosed: true }); // late results from the agent's outbox
   if ("error" in loaded) return loaded.error;
   const { run } = loaded;
   const body = await parseJson(req, channelResultRequest);

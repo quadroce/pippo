@@ -9,6 +9,7 @@ from pippo.guide import GuideCapture, parse_channel
 from pippo.images_run import Measurement
 from pippo.probes.images import ImageItem
 from pippo.probes.logos import channel_logo_checks
+from pippo.outbox import Outbox
 from pippo.runner import RunBlocked, execute_run
 
 S = Settings(api_base_url="https://x.test", agent_api_key="k", http_retries=0)
@@ -78,7 +79,7 @@ def measurement():
 
 def run(server, tmp_path, detect=lambda s: "IT", measure=measurement):
     api = ApiClient(S, transport=httpx.MockTransport(server.handler), sleep=lambda s: None)
-    return execute_run(api, S, "IT", measure, detect=detect, reports_dir=tmp_path)
+    return execute_run(api, S, "IT", measure, detect=detect, reports_dir=tmp_path, outbox=Outbox(tmp_path / "outbox"))
 
 
 def test_successful_run_uploads_in_order_and_saves_locally(tmp_path):

@@ -83,7 +83,7 @@ Status: ⬜ todo · 🟨 in progress · ✅ done
 |---|------|--------|
 | 5.1 | Threshold tuning on real data; per-country overrides | 🟨 per-country overrides done (code); tuning on real data needs the deployed system and weeks of runs |
 | 5.2 | Retention cron; audit log | 🟨 retention cron, no-run-today and agent-offline notices done; not run against a database, a Blob store or Vercel Cron |
-| 5.3 | Agent offline queue, update check, selector-health fail-fast | ⬜ |
+| 5.3 | Agent offline queue, update check, selector-health fail-fast | 🟨 selector health, offline outbox and update check done and unit-tested; the outbox has not seen a real outage and selector health has not seen a real layout change |
 | 5.4 | Runbook finalized; handover | ⬜ |
 
 ## 4. Open items

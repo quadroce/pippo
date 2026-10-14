@@ -18,6 +18,8 @@ const db = vi.hoisted(() => {
 vi.mock("@/lib/db", () => ({ prisma: db }));
 const alerts = vi.hoisted(() => ({ recordCriticalFindings: vi.fn(), finalizeAlerts: vi.fn() }));
 vi.mock("@/lib/alerts-data", () => alerts);
+const notices = vi.hoisted(() => ({ sendSelectorHealthNotice: vi.fn() }));
+vi.mock("@/lib/notices", () => notices);
 const sendDailyReport = vi.hoisted(() => vi.fn());
 vi.mock("@/lib/report-data", () => ({ sendDailyReport }));
 
@@ -90,13 +92,23 @@ describe("POST /runs/:id/channels", () => {
     expect((await call(channels, { ...body, screenshots: [{ tOffsetSec: 1, kind: "x", blobUrl: "not a url" }] })).status).toBe(400);
   });
 
-  it("rejects bad auth, bad id, unknown run, closed run and invalid body", async () => {
+  it("accepts a late result for a run that has already finished (the agent's outbox), but not for other endpoints", async () => {
+    db.tx.channelResult.create.mockResolvedValue({ id: "late" });
+    for (const status of ["completed", "failed"]) {
+      db.run.findUnique.mockResolvedValueOnce({ id: RUN, countryCode: "IT", status, startedAt: new Date() });
+      expect((await call(channels, body)).status).toBe(201);
+    }
+    db.run.findUnique.mockResolvedValueOnce({ id: RUN, countryCode: "IT", status: "completed", startedAt: new Date() });
+    expect((await call(images as typeof channels, { pages: {}, checks: [] })).status).toBe(409);
+  });
+
+  it("rejects bad auth, bad id, unknown run, blocked run and invalid body", async () => {
     expect((await call(channels, body, RUN, "nope")).status).toBe(401);
     expect((await call(channels, body, "not-a-uuid")).status).toBe(400);
     db.run.findUnique.mockResolvedValueOnce(null);
     expect((await call(channels, body)).status).toBe(404);
-    db.run.findUnique.mockResolvedValueOnce({ id: RUN, countryCode: "IT", status: "completed" });
-    expect((await call(channels, body)).status).toBe(409);
+    db.run.findUnique.mockResolvedValueOnce({ id: RUN, countryCode: "IT", status: "blocked" });
+    expect((await call(channels, body)).status).toBe(409);                  // a blocked run never takes results
     expect((await call(channels, { channel: { slug: "../x", name: "n" } })).status).toBe(400);
   });
 });
@@ -135,6 +147,18 @@ describe("POST /runs/:id/finish", () => {
     const res = await call(finish as typeof channels, {});
     expect(res.status).toBe(200);
     expect(alerts.finalizeAlerts).toHaveBeenCalledWith(RUN);
+  });
+
+  it("sends the selector-health notice when a run fails with that reason, and only then", async () => {
+    db.channelResult.findMany.mockResolvedValue([]);
+    db.run.update.mockResolvedValue({ id: RUN, status: "failed", trigger: "scheduled", log: null, countryCode: "IT" });
+    const log = [{ level: "error", msg: "Selector health failed on the live guide: missing guide rows." }];
+    const res = await call(finish as typeof channels, { status: "failed", reason: "selector_health", log });
+    expect(res.status).toBe(200);
+    expect(notices.sendSelectorHealthNotice).toHaveBeenCalledWith({ runId: RUN, country: "IT", message: log[0].msg });
+    await call(finish as typeof channels, { status: "failed", log });
+    expect(notices.sendSelectorHealthNotice).toHaveBeenCalledTimes(1);
+    expect((await call(finish as typeof channels, { status: "failed", reason: "nonsense" })).status).toBe(400);
   });
 
   it("does not finalize alerts for a failed run", async () => {

@@ -77,3 +77,17 @@ export async function sendAgentOfflineNotice(opts: { country: string; localDate:
   );
 }
 
+/** docs/04 section 4.3: the pages changed and the run was aborted; discovery mode is the way to repair it. Never throws. */
+export async function sendSelectorHealthNotice(opts: { runId: string; country: string; message: string }): Promise<boolean> {
+  const base = (process.env.AUTH_URL ?? "").replace(/\/$/, "");
+  return notify(
+    `[Pippo] ${opts.country} — CRITICAL: selector health failed, run aborted`,
+    [
+      opts.message,
+      "",
+      "pluto.tv most likely changed its pages. On the agent PC run `python -m pippo discover --country " + opts.country + "`, update agent/pluto_profile.yaml, commit it and restart the service.",
+      `${base}/runs/${opts.runId}`,
+    ].join("\n"),
+  );
+}
+

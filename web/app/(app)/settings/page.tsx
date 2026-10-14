@@ -5,7 +5,8 @@ import { requireAdmin } from "@/lib/session";
 import { getEffectiveThresholds, getGlobalThresholds, getStoredThresholds, SETTING_REPORT_RECIPIENTS } from "@/lib/settings";
 import { CHECK_CATALOG, toDisplay, type Unit } from "@/lib/thresholds";
 import { getRetention, SETTING_RETENTION_LAST, type CleanupResult } from "@/lib/retention-data";
-import { resetThreshold, runCleanupNow, saveActiveCountry, saveRecipients, saveRetention, saveThreshold } from "./actions";
+import { SETTING_LATEST_AGENT_VERSION } from "@/lib/agent-version";
+import { resetThreshold, runCleanupNow, saveLatestAgentVersion, saveActiveCountry, saveRecipients, saveRetention, saveThreshold } from "./actions";
 import { SimpleForm, ThresholdRow } from "./forms";
 
 export const dynamic = "force-dynamic";
@@ -25,6 +26,8 @@ export default async function SettingsPage({ searchParams }: { searchParams: Pro
   ]);
   const recipients = Array.isArray(recipientsSetting?.value) ? (recipientsSetting.value as string[]) : [];
   const [retention, lastCleanupRow] = await Promise.all([getRetention(), prisma.setting.findUnique({ where: { key: SETTING_RETENTION_LAST } })]);
+  const latestVersionRow = await prisma.setting.findUnique({ where: { key: SETTING_LATEST_AGENT_VERSION } });
+  const latestVersion = typeof latestVersionRow?.value === "string" ? latestVersionRow.value : "";
   const lastCleanup = lastCleanupRow?.value && typeof lastCleanupRow.value === "object" ? (lastCleanupRow.value as unknown as CleanupResult) : null;
 
   // Threshold scope: "global" or one country. A country shows the layered values and which checks it overrides.
@@ -152,6 +155,20 @@ export default async function SettingsPage({ searchParams }: { searchParams: Pro
             </p>
           </SimpleForm>
         </div>
+      </section>
+
+      <section aria-label="Agent version" className="space-y-2">
+        <h2 className="text-lg font-medium">Agent version</h2>
+        <p className="text-sm text-neutral-600">
+          Announce the version the agent PC should run. An older agent logs a warning and the Overview shows it; nothing updates itself, you pull the
+          repository, reinstall the requirements and restart the service (see the runbook).
+        </p>
+        <SimpleForm action={saveLatestAgentVersion} button="Save">
+          <label className="text-sm">
+            Latest version{" "}
+            <input name="version" defaultValue={latestVersion} placeholder="0.2.0" className="w-32 rounded border border-neutral-300 px-2 py-1" />
+          </label>
+        </SimpleForm>
       </section>
 
       <section aria-label="Audit log" className="space-y-2">

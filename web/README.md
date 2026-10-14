@@ -175,3 +175,9 @@ The thresholds section of Settings has a scope selector: **Global** or one count
 - A notice that could not be emailed is not marked as sent, so the next check retries it.
 
 **Hobby plan note**: Vercel Hobby only allows daily crons, hence the single daily health check at 09:00 UTC; it covers a 06:00 run in Europe, while for a country whose scheduled time is later the day's miss is noticed the following morning. On a plan with hourly crons point the health schedule at `0 * * * *` for earlier notices. The audit log needs no retention job: it is small and shows the last 20 entries.
+
+## Resilience support for the agent (step 5.3)
+
+- **Late results**: `POST /api/agent/runs/:id/channels` also accepts a run that is already `completed` or `failed` (a `blocked` run never takes results), so results the agent kept in its offline outbox arrive when the network is back. The other result endpoints still require a running run. Late results are stored and alerted like any other; the daily report of that run has already gone out, so it does not include them.
+- **Selector health notice**: `POST /runs/:id/finish` accepts `reason: "selector_health"` on a failed run and emails the operational notice (docs/04 section 4.3) with the message and the steps to repair the profile.
+- **Update announcement**: Settings → Agent version stores `agent.latestVersion`; the heartbeat returns it and the Overview agent panel shows "Update available" for an older agent. Nothing updates itself.

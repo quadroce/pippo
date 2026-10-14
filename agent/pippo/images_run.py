@@ -17,6 +17,7 @@ from pippo.browser import open_context
 from pippo.config import AGENT_DIR
 from pippo.epg_fetch import capture_template, fallback_template, fetch_listings
 from pippo.guide import GuideCapture, GuideChannel
+from pippo.health import SelectorHealthError, guide_selectors, missing_on_page
 from pippo.probes.images import (
     NetworkImages,
     PageImages,
@@ -82,6 +83,10 @@ def measure(
                 pages.append(
                     crawl_page(page, net, name, url, progress=log.info, on_step=rows.step if name == "epg" else None)
                 )
+                if name == "epg":
+                    missing = missing_on_page(page, guide_selectors(profile.data))
+                    if missing:
+                        raise SelectorHealthError("live guide", missing)
                 if name == "epg" and not guide_only:
                     epg_shot = _screenshot_guide(page)
                     epg_fetch = _fetch_epg(page, profile, guide)

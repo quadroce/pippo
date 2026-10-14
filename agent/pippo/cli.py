@@ -14,6 +14,7 @@ def main(argv: list[str] | None = None) -> int:
     sub.add_parser("doctor", help="check Chrome, config, geolocation and API access")
     sub.add_parser("heartbeat", help="send one heartbeat and show the country pre-check")
     sub.add_parser("serve", help="run the heartbeat loop")
+    sub.add_parser("flush", help="send channel results that could not be uploaded earlier")
     disc = sub.add_parser("discover", help="map pluto.tv routes and selectors (step 0.5)")
     disc.add_argument("--country", required=True)
     disc.add_argument("--url", help="entry URL (default: https://pluto.tv/<country>/)")
@@ -87,6 +88,28 @@ def main(argv: list[str] | None = None) -> int:
                 print(f"[{c['severity'].upper()}] {c['scope']} {c['checkId']}: {c['value']} > {c['threshold']} {c['detail']}")
         print(f"Report written to {out}")
         return 0
+
+    if args.command == "flush":
+        problems = validate_settings(settings)
+        if problems:
+            print(chr(10).join(problems))
+            return 2
+        from pippo.api_client import ApiClient
+        from pippo.outbox import Outbox, flush
+
+        outbox = Outbox()
+        if outbox.count() == 0:
+            print("Nothing waiting in the outbox.")
+            return 0
+        api = ApiClient(settings)
+        try:
+            r = flush(api, outbox)
+        finally:
+            api.close()
+        print(f"Sent {r.sent}, still waiting {r.kept}, rejected {r.rejected}, dropped as too old {r.dropped}.")
+        for e in r.errors[:5]:
+            print("  " + e)
+        return 0 if r.kept == 0 else 1
 
     if args.command == "channel":
         from pippo.channel_run import measure_channel

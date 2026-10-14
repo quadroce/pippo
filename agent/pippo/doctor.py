@@ -58,6 +58,14 @@ def run_doctor(settings: Settings) -> list[Check]:
     # Optional: only the subtitle sync check needs it, so a missing package is information, not a failure.
     checks.append(Check("whisper (optional)", True, detail if usable else f"not available, subtitle sync will be skipped ({detail})"))
 
+    try:
+        from pippo.outbox import Outbox
+
+        waiting = Outbox().count()
+        checks.append(Check("outbox", True, f"{waiting} result(s) waiting to be uploaded" if waiting else "empty"))
+    except Exception as e:
+        checks.append(Check("outbox", True, f"not readable: {str(e).splitlines()[0]}"))
+
     if problems:
         checks.append(Check("api", False, "skipped: fix config first"))
     else:
